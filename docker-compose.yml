@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: medflow-mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=medflow
+    networks:
+      - medflow-network
+    restart: unless-stopped
+
+  # Redis (for Celery)
+  redis:
+    image: redis:7-alpine
+    container_name: medflow-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - medflow-network
+    restart: unless-stopped
+
+  # FastAPI Backend
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medflow-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - MONGODB_DB_NAME=medflow
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=change-this-in-production-use-strong-secret
+      - DEBUG=True
+      - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://localhost:3000"]
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - medflow-network
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+
+  # Celery Worker (for VLM processing)
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: medflow-celery-worker
+    command: celery -A celery_app worker --loglevel=info
+    environment:
+      - MONGODB_URL=mongodb://mongodb:27017
+      - MONGODB_DB_NAME=medflow
+      - REDIS_URL=redis://redis:6379/0
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - medflow-network
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app
+
+  # React Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: medflow-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - medflow-network
+    restart: unless-stopped
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+volumes:
+  mongodb_data:
+
+networks:
+  medflow-network:
+    driver: bridge
+

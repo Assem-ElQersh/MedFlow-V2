@@ -1,0 +1,98 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Frontend build
+frontend/dist/
+frontend/build/
+
+# GCS credentials
+*.json
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.node.json
+
+# MongoDB data
+data/
+
+# Docker volumes
+volumes/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# Temporary files
+*.tmp
+*.temp
+
+# Documentation (extra files)
+.plan.md
+*.plan.md
+PROJECT_SUMMARY.md
+SETUP.md
+idea.txt
+DESIGN.md
+NOTES.md
+
+# GitHub specific
+.github/
+
+# Editor specific
+*.sublime-project
+*.sublime-workspace
