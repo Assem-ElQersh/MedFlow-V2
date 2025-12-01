@@ -401,13 +401,4 @@ MedFlow/
 
 ## License
 
-[Your License Here]
-
-## Support
-
-For issues and questions:
-- GitHub Issues: https://github.com/Assem-ElQersh/MedFlow-V2/issues
-
-## Acknowledgments
-
-Built with FastAPI, React, MongoDB, and modern web technologies for healthcare management.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
