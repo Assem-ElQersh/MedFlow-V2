@@ -49,7 +49,31 @@ const PatientForm: React.FC = () => {
       navigate(`/patients/${data.patient_id}`);
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to create patient');
+      // Normalize FastAPI / Pydantic error responses into a readable message
+      const detail = err.response?.data?.detail;
+
+      if (!detail) {
+        setError('Failed to create patient');
+        return;
+      }
+
+      // FastAPI validation errors come as an array of {loc, msg, type, ...}
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((d: any) => d?.msg)
+          .filter(Boolean)
+          .join(' | ');
+        setError(messages || 'Validation error while creating patient');
+        return;
+      }
+
+      // If backend sent a string message
+      if (typeof detail === 'string') {
+        setError(detail);
+        return;
+      }
+
+      setError('Failed to create patient');
     },
   });
 
@@ -125,7 +149,16 @@ const PatientForm: React.FC = () => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    createMutation.mutate(formData);
+
+    // Normalize optional fields: send undefined instead of empty strings
+    const payload: PatientCreateRequest = {
+      ...formData,
+      phone_secondary: formData.phone_secondary || undefined,
+      email: formData.email || undefined,
+      address: formData.address || undefined,
+    };
+
+    createMutation.mutate(payload);
   };
 
   return (
