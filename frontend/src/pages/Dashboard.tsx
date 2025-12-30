@@ -6,44 +6,135 @@ import {
   Grid,
   Typography,
   Paper,
+  CircularProgress,
+  Alert,
 } from '@mui/material';
 import {
   People,
   Assignment,
   CheckCircle,
   Pending,
+  PersonAdd,
+  LocalHospital,
+  Group,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { dashboardService } from '../services/dashboardService';
 
 const Dashboard: React.FC = () => {
   const { user } = useAuth();
 
-  const stats = [
-    {
-      title: 'Total Patients',
-      value: '0',
-      icon: <People fontSize="large" />,
-      color: '#1976d2',
-    },
-    {
-      title: 'Active Sessions',
-      value: '0',
-      icon: <Assignment fontSize="large" />,
-      color: '#ed6c02',
-    },
-    {
-      title: 'Completed Today',
-      value: '0',
-      icon: <CheckCircle fontSize="large" />,
-      color: '#2e7d32',
-    },
-    {
-      title: 'Pending Review',
-      value: '0',
-      icon: <Pending fontSize="large" />,
-      color: '#9c27b0',
-    },
-  ];
+  const { data: statsData, isLoading, error } = useQuery({
+    queryKey: ['dashboard', 'stats'],
+    queryFn: () => dashboardService.getStats(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+
+  if (isLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (error) {
+    return (
+      <Alert severity="error">
+        Failed to load dashboard statistics. Please try again.
+      </Alert>
+    );
+  }
+
+  // Build stats array based on user role
+  const getStatsForRole = () => {
+    if (user?.role === 'nurse') {
+      return [
+        {
+          title: 'Total Patients',
+          value: statsData?.total_patients || 0,
+          icon: <People fontSize="large" />,
+          color: '#1976d2',
+        },
+        {
+          title: 'Active Sessions',
+          value: statsData?.active_sessions || 0,
+          icon: <Assignment fontSize="large" />,
+          color: '#ed6c02',
+        },
+        {
+          title: 'Created Today',
+          value: statsData?.created_today || 0,
+          icon: <PersonAdd fontSize="large" />,
+          color: '#2e7d32',
+        },
+        {
+          title: 'Pending Review',
+          value: statsData?.pending_review || 0,
+          icon: <Pending fontSize="large" />,
+          color: '#9c27b0',
+        },
+      ];
+    } else if (user?.role === 'doctor') {
+      return [
+        {
+          title: 'Assigned to Me',
+          value: statsData?.assigned_to_me || 0,
+          icon: <Assignment fontSize="large" />,
+          color: '#ed6c02',
+        },
+        {
+          title: 'Currently Reviewing',
+          value: statsData?.currently_reviewing || 0,
+          icon: <LocalHospital fontSize="large" />,
+          color: '#1976d2',
+        },
+        {
+          title: 'Completed Today',
+          value: statsData?.completed_today || 0,
+          icon: <CheckCircle fontSize="large" />,
+          color: '#2e7d32',
+        },
+        {
+          title: 'Total Assigned',
+          value: statsData?.total_assigned || 0,
+          icon: <People fontSize="large" />,
+          color: '#9c27b0',
+        },
+      ];
+    } else {
+      // Admin
+      return [
+        {
+          title: 'Total Patients',
+          value: statsData?.total_patients || 0,
+          icon: <People fontSize="large" />,
+          color: '#1976d2',
+        },
+        {
+          title: 'Total Users',
+          value: statsData?.total_users || 0,
+          icon: <Group fontSize="large" />,
+          color: '#9c27b0',
+        },
+        {
+          title: 'Active Sessions',
+          value: statsData?.active_sessions || 0,
+          icon: <Assignment fontSize="large" />,
+          color: '#ed6c02',
+        },
+        {
+          title: 'Completed Today',
+          value: statsData?.completed_today || 0,
+          icon: <CheckCircle fontSize="large" />,
+          color: '#2e7d32',
+        },
+      ];
+    }
+  };
+
+  const stats = getStatsForRole();
 
   return (
     <Box>

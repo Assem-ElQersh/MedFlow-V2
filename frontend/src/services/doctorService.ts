@@ -38,11 +38,11 @@ export interface PendingTests {
 }
 
 export const doctorService = {
-  // Get doctor queue
-  getQueue: async (assignedToMe: boolean = false, status: string = 'awaiting_doctor'): Promise<SessionSummary[]> => {
+  // Get doctor queue (automatically includes awaiting_doctor and vlm_failed statuses)
+  getQueue: async (assignedToMe: boolean = false): Promise<SessionSummary[]> => {
     const response = await axiosInstance.get<SessionSummary[]>(
       `${API_V1_PREFIX}/doctor/queue`,
-      { params: { assigned_to_me: assignedToMe, status } }
+      { params: { assigned_to_me: assignedToMe } }
     );
     return response.data;
   },

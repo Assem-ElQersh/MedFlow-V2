@@ -15,13 +15,22 @@ router = APIRouter()
 @router.get("/queue", response_model=List[SessionSummary])
 async def get_doctor_queue(
     assigned_to_me: bool = Query(False, description="Filter by assigned doctor"),
-    status: SessionStatus = Query(SessionStatus.awaiting_doctor),
     current_user: Dict = Depends(require_role(["doctor", "admin"])),
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
-    """Get sessions in doctor queue"""
+    """Get sessions in doctor queue
+    
+    Includes:
+    - awaiting_doctor and vlm_failed statuses (filtered by assigned_doctor_id if assigned_to_me=True)
+    - doctor_reviewing statuses where the current doctor is the reviewing doctor (always shown)
+    """
     doctor_id = current_user["user_id"] if assigned_to_me else None
-    return await session_service.get_sessions_for_doctor_queue(db, doctor_id, status)
+    current_doctor_id = current_user["user_id"]
+    # Include both awaiting_doctor and vlm_failed statuses so doctors can see sessions even if VLM fails
+    statuses = [SessionStatus.awaiting_doctor, SessionStatus.vlm_failed]
+    return await session_service.get_sessions_for_doctor_queue(
+        db, doctor_id, statuses, current_doctor_id
+    )
 
 
 @router.get("/sessions/{session_id}/review", response_model=Session)
@@ -40,16 +49,33 @@ async def get_session_for_review(
             detail="Session not found"
         )
     
-    # If status is awaiting_doctor, change to doctor_reviewing
-    if session_doc["session_status"] == SessionStatus.awaiting_doctor:
+    # Check if session is already being reviewed by another doctor
+    if session_doc["session_status"] == SessionStatus.doctor_reviewing:
+        # Allow access if current doctor is the one reviewing, or if admin
+        if session_doc.get("doctor_id") != current_user["user_id"] and current_user.get("role") != "admin":
+            from fastapi import HTTPException, status
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This session is currently being reviewed by another doctor"
+            )
+        # If it's the same doctor, allow access without changing status
+        return await session_service.get_session(db, session_id)
+    
+    # If status is awaiting_doctor or vlm_failed, change to doctor_reviewing
+    # This ensures doctors can review sessions even if VLM processing failed
+    if session_doc["session_status"] in [SessionStatus.awaiting_doctor, SessionStatus.vlm_failed]:
         now = datetime.utcnow()
+        # Get user full name
+        user_doc = await db.users.find_one({"user_id": current_user["user_id"]})
+        doctor_name = user_doc.get("full_name", current_user.get("username", "Unknown"))
+        
         await db.sessions.update_one(
             {"session_id": session_id},
             {
                 "$set": {
                     "session_status": SessionStatus.doctor_reviewing,
                     "doctor_id": current_user["user_id"],
-                    "doctor_name": current_user.get("username"),  # Should be full_name
+                    "doctor_name": doctor_name,
                     "doctor_opened_at": now,
                     "last_updated": now
                 },

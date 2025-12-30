@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Box,
   Button,
@@ -15,14 +15,17 @@ import {
   IconButton,
   Divider,
   Alert,
+  CircularProgress,
 } from '@mui/material';
 import { Add, Delete, ArrowBack } from '@mui/icons-material';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { patientService } from '../../services/patientService';
-import { PatientCreateRequest, Medication, SurgicalProcedure } from '../../types/patient';
+import { PatientCreateRequest, PatientUpdateRequest, Medication, SurgicalProcedure } from '../../types/patient';
 
 const PatientForm: React.FC = () => {
   const navigate = useNavigate();
+  const { patientId } = useParams<{ patientId: string }>();
+  const isEditMode = !!patientId;
   const [error, setError] = useState('');
   const [formData, setFormData] = useState<PatientCreateRequest>({
     name: '',
@@ -42,6 +45,46 @@ const PatientForm: React.FC = () => {
 
   const [newDisease, setNewDisease] = useState('');
   const [newAllergy, setNewAllergy] = useState('');
+
+  // Load patient data if in edit mode
+  const { data: patient, isLoading: isLoadingPatient } = useQuery({
+    queryKey: ['patient', patientId],
+    queryFn: () => patientService.getPatient(patientId!),
+    enabled: isEditMode && !!patientId,
+  });
+
+  // Populate form when patient data loads
+  useEffect(() => {
+    if (patient && isEditMode) {
+      // Format date_of_birth to YYYY-MM-DD for date input
+      const formatDate = (dateString: string): string => {
+        const date = new Date(dateString);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      };
+
+      setFormData({
+        name: patient.name,
+        national_id: patient.national_id,
+        date_of_birth: formatDate(patient.date_of_birth),
+        phone_primary: patient.phone_primary,
+        phone_secondary: patient.phone_secondary || '',
+        email: patient.email || '',
+        address: patient.address || '',
+        sex: patient.sex,
+        chronic_diseases: patient.chronic_diseases,
+        allergies: patient.allergies,
+        current_medications: patient.current_medications,
+        surgical_history: patient.surgical_history.map((surgery: any) => ({
+          ...surgery,
+          date: surgery.date ? formatDate(surgery.date) : '',
+        })),
+        smoking_status: patient.smoking_status,
+      });
+    }
+  }, [patient, isEditMode]);
 
   const createMutation = useMutation({
     mutationFn: (data: PatientCreateRequest) => patientService.createPatient(data),
@@ -74,6 +117,40 @@ const PatientForm: React.FC = () => {
       }
 
       setError('Failed to create patient');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: PatientUpdateRequest) => patientService.updatePatient(patientId!, data),
+    onSuccess: (data) => {
+      navigate(`/patients/${data.patient_id}`);
+    },
+    onError: (err: any) => {
+      // Normalize FastAPI / Pydantic error responses into a readable message
+      const detail = err.response?.data?.detail;
+
+      if (!detail) {
+        setError('Failed to update patient');
+        return;
+      }
+
+      // FastAPI validation errors come as an array of {loc, msg, type, ...}
+      if (Array.isArray(detail)) {
+        const messages = detail
+          .map((d: any) => d?.msg)
+          .filter(Boolean)
+          .join(' | ');
+        setError(messages || 'Validation error while updating patient');
+        return;
+      }
+
+      // If backend sent a string message
+      if (typeof detail === 'string') {
+        setError(detail);
+        return;
+      }
+
+      setError('Failed to update patient');
     },
   });
 
@@ -151,23 +228,40 @@ const PatientForm: React.FC = () => {
     setError('');
 
     // Normalize optional fields: send undefined instead of empty strings
-    const payload: PatientCreateRequest = {
+    const payload: PatientCreateRequest | PatientUpdateRequest = {
       ...formData,
       phone_secondary: formData.phone_secondary || undefined,
       email: formData.email || undefined,
       address: formData.address || undefined,
     };
 
-    createMutation.mutate(payload);
+    if (isEditMode) {
+      updateMutation.mutate(payload);
+    } else {
+      createMutation.mutate(payload as PatientCreateRequest);
+    }
   };
+
+  if (isEditMode && isLoadingPatient) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box>
       <Box display="flex" alignItems="center" mb={3}>
-        <IconButton onClick={() => navigate('/patients')} sx={{ mr: 2 }}>
+        <IconButton 
+          onClick={() => navigate(isEditMode ? `/patients/${patientId}` : '/patients')} 
+          sx={{ mr: 2 }}
+        >
           <ArrowBack />
         </IconButton>
-        <Typography variant="h4">New Patient Registration</Typography>
+        <Typography variant="h4">
+          {isEditMode ? 'Edit Patient Information' : 'New Patient Registration'}
+        </Typography>
       </Box>
 
       {error && (
@@ -198,6 +292,8 @@ const PatientForm: React.FC = () => {
                 label="National ID"
                 value={formData.national_id}
                 onChange={(e) => handleInputChange('national_id', e.target.value)}
+                disabled={isEditMode}
+                helperText={isEditMode ? 'National ID cannot be changed' : ''}
               />
             </Grid>
             <Grid item xs={12} md={4}>
@@ -453,11 +549,21 @@ const PatientForm: React.FC = () => {
             type="submit"
             variant="contained"
             size="large"
-            disabled={createMutation.isPending}
+            disabled={createMutation.isPending || updateMutation.isPending}
           >
-            {createMutation.isPending ? 'Creating Patient...' : 'Create Patient'}
+            {isEditMode
+              ? updateMutation.isPending
+                ? 'Updating Patient...'
+                : 'Update Patient'
+              : createMutation.isPending
+              ? 'Creating Patient...'
+              : 'Create Patient'}
           </Button>
-          <Button variant="outlined" size="large" onClick={() => navigate('/patients')}>
+          <Button 
+            variant="outlined" 
+            size="large" 
+            onClick={() => navigate(isEditMode ? `/patients/${patientId}` : '/patients')}
+          >
             Cancel
           </Button>
         </Box>

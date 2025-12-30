@@ -20,11 +20,16 @@ import { Search, Add, PersonAdd } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { patientService } from '../../services/patientService';
 import { PatientSearchResult } from '../../types/patient';
+import { useAuth } from '../../contexts/AuthContext';
 
 const PatientSearch: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedQuery, setDebouncedQuery] = useState('');
+  
+  // Check if user has permission to create patients (nurse, doctor, admin)
+  const canCreatePatient = user && ['nurse', 'doctor', 'admin'].includes(user.role);
 
   // Debounce search
   React.useEffect(() => {
@@ -49,13 +54,15 @@ const PatientSearch: React.FC = () => {
     <Box>
       <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
         <Typography variant="h4">Patient Management</Typography>
-        <Button
-          variant="contained"
-          startIcon={<PersonAdd />}
-          onClick={() => navigate('/patients/new')}
-        >
-          New Patient
-        </Button>
+        {canCreatePatient && (
+          <Button
+            variant="contained"
+            startIcon={<PersonAdd />}
+            onClick={() => navigate('/patients/new')}
+          >
+            New Patient
+          </Button>
+        )}
       </Box>
 
       <Paper sx={{ p: 3, mb: 3 }}>

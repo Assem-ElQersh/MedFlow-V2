@@ -323,15 +323,38 @@ async def submit_session(
 async def get_sessions_for_doctor_queue(
     db: AsyncIOMotorDatabase,
     doctor_id: Optional[str] = None,
-    status_filter: Optional[SessionStatus] = SessionStatus.awaiting_doctor
+    status_filter: Optional[List[SessionStatus]] = None,
+    current_doctor_id: Optional[str] = None
 ) -> List[SessionSummary]:
-    """Get sessions for doctor queue"""
-    query = {"session_status": status_filter}
+    """Get sessions for doctor queue
+    
+    Args:
+        db: Database connection
+        doctor_id: Optional doctor ID to filter by assigned doctor (for awaiting_doctor/vlm_failed)
+        status_filter: Optional list of statuses to filter by. 
+                      Defaults to [awaiting_doctor, vlm_failed]
+        current_doctor_id: Current doctor's ID to include their doctor_reviewing sessions
+    """
+    if status_filter is None:
+        status_filter = [SessionStatus.awaiting_doctor, SessionStatus.vlm_failed]
+    
+    # Build query for awaiting_doctor and vlm_failed sessions
+    query_pending = {"session_status": {"$in": [s.value for s in status_filter]}}
     
     if doctor_id:
-        query["assigned_doctor_id"] = doctor_id
+        query_pending["assigned_doctor_id"] = doctor_id
     
-    cursor = db.sessions.find(query).sort("session_date", 1)
+    # Build query for doctor_reviewing sessions (always show sessions being reviewed by current doctor)
+    query_reviewing = {
+        "session_status": SessionStatus.doctor_reviewing.value
+    }
+    if current_doctor_id:
+        query_reviewing["doctor_id"] = current_doctor_id
+    
+    # Combine both queries using $or
+    combined_query = {"$or": [query_pending, query_reviewing]}
+    
+    cursor = db.sessions.find(combined_query).sort("session_date", 1)
     sessions = await cursor.to_list(length=None)
     
     results = []

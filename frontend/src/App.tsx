@@ -12,6 +12,7 @@ import PatientSearch from './pages/patients/PatientSearch';
 import PatientForm from './pages/patients/PatientForm';
 import PatientProfile from './pages/patients/PatientProfile';
 import SessionCreate from './pages/sessions/SessionCreate';
+import SessionDetail from './pages/sessions/SessionDetail';
 import DoctorQueue from './pages/doctor/DoctorQueue';
 import SessionReview from './pages/doctor/SessionReview';
 import UserManagement from './pages/admin/UserManagement';
@@ -57,10 +58,26 @@ function App() {
                 <Route index element={<Dashboard />} />
                 {/* Patient routes */}
                 <Route path="patients" element={<PatientSearch />} />
-                <Route path="patients/new" element={<PatientForm />} />
+                <Route 
+                  path="patients/new" 
+                  element={
+                    <ProtectedRoute allowedRoles={['nurse', 'doctor', 'admin']}>
+                      <PatientForm />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="patients/:patientId/edit" 
+                  element={
+                    <ProtectedRoute allowedRoles={['nurse', 'doctor', 'admin']}>
+                      <PatientForm />
+                    </ProtectedRoute>
+                  } 
+                />
                 <Route path="patients/:patientId" element={<PatientProfile />} />
                 {/* Session routes */}
                 <Route path="sessions/new" element={<SessionCreate />} />
+                <Route path="sessions/:sessionId" element={<SessionDetail />} />
                 {/* Doctor routes */}
                 <Route
                   path="doctor/queue"

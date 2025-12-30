@@ -108,7 +108,15 @@ const DoctorQueue: React.FC = () => {
                     <Chip
                       label={session.session_status.replace('_', ' ')}
                       size="small"
-                      color="warning"
+                      color={
+                        session.session_status === 'vlm_failed'
+                          ? 'error'
+                          : session.session_status === 'doctor_reviewing'
+                          ? 'info'
+                          : session.session_status === 'awaiting_doctor'
+                          ? 'warning'
+                          : 'default'
+                      }
                     />
                   </TableCell>
                 </TableRow>

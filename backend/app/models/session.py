@@ -70,21 +70,21 @@ class VLMChatMessage(BaseModel):
 
 
 class Medication(BaseModel):
-    name: str
-    dosage: str
-    duration: str
-    instructions: str
+    name: str = Field(..., min_length=1)
+    dosage: str = Field(..., min_length=1)
+    duration: str = Field(..., min_length=1)
+    instructions: str = ""
 
 
 class Diagnosis(BaseModel):
-    primary_diagnosis: str
+    primary_diagnosis: str = Field(..., min_length=1)
     severity: str  # "mild", "moderate", "severe"
     medications: List[Medication] = []
-    recommendations: str
+    recommendations: str = ""
     follow_up_required: bool = False
     follow_up_reason: Optional[str] = None
-    follow_up_date: Optional[datetime] = None
-    doctor_notes: str
+    follow_up_date: Optional[str] = None  # Changed to string to accept date input from frontend
+    doctor_notes: str = Field(..., min_length=1)
 
 
 class PendingTests(BaseModel):

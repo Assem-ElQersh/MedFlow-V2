@@ -78,6 +78,7 @@ const SessionReview: React.FC = () => {
 
   const patient = patientPortfolio?.patient;
   const vlmOutput = session.vlm_initial_output;
+  const vlmFailed = session.vlm_initial_status === 'failed' || session.session_status === 'vlm_failed';
 
   const canClose = !!session.diagnosis;
 
@@ -291,7 +292,19 @@ const SessionReview: React.FC = () => {
         {/* Tab 4: VLM Analysis */}
         <TabPanel value={tabValue} index={3}>
           <Box sx={{ px: 3 }}>
-            {vlmOutput ? (
+            {vlmFailed ? (
+              <Alert severity="warning" sx={{ mb: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  VLM Processing Failed
+                </Typography>
+                <Typography variant="body2">
+                  The VLM system encountered an error while processing this session. 
+                  However, all session data (chief complaint, patient state, uploaded files) 
+                  is still available for your review. You can proceed with diagnosis based on 
+                  the available information.
+                </Typography>
+              </Alert>
+            ) : vlmOutput ? (
               <>
                 <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.50' }}>
                   <Typography variant="h6" gutterBottom>

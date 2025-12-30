@@ -10,6 +10,7 @@ pymongo==4.6.0
 # Authentication
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==4.1.2  # Pin bcrypt version compatible with passlib 1.7.4
 python-dotenv==1.0.0
 pydantic[email]==2.5.0
 pydantic-settings==2.1.0

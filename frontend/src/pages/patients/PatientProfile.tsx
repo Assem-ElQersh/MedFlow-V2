@@ -22,6 +22,7 @@ import {
 import { ArrowBack, Edit, Add } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { patientService } from '../../services/patientService';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -41,6 +42,10 @@ const PatientProfile: React.FC = () => {
   const { patientId } = useParams<{ patientId: string }>();
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
+  const { user } = useAuth();
+  
+  // Check if user has permission to edit patients (nurse, doctor, admin)
+  const canEditPatient = user && ['nurse', 'doctor', 'admin'].includes(user.role);
 
   const { data: portfolio, isLoading } = useQuery({
     queryKey: ['patient', 'portfolio', patientId],
@@ -84,9 +89,15 @@ const PatientProfile: React.FC = () => {
           >
             New Session
           </Button>
-          <Button variant="outlined" startIcon={<Edit />}>
-            Edit Patient
-          </Button>
+          {canEditPatient && (
+            <Button 
+              variant="outlined" 
+              startIcon={<Edit />}
+              onClick={() => navigate(`/patients/${patient.patient_id}/edit`)}
+            >
+              Edit Patient
+            </Button>
+          )}
         </Box>
       </Box>
 

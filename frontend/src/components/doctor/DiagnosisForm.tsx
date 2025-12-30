@@ -57,7 +57,14 @@ const DiagnosisForm: React.FC<DiagnosisFormProps> = ({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      await doctorService.submitDiagnosis(sessionId, diagnosis);
+      // Filter out empty medications before submitting
+      const filteredDiagnosis = {
+        ...diagnosis,
+        medications: diagnosis.medications.filter(
+          med => med.name.trim() && med.dosage.trim() && med.duration.trim()
+        ),
+      };
+      await doctorService.submitDiagnosis(sessionId, filteredDiagnosis);
       await doctorService.setPendingTests(sessionId, pendingTests);
     },
     onSuccess: () => {
@@ -65,7 +72,18 @@ const DiagnosisForm: React.FC<DiagnosisFormProps> = ({
       if (onComplete) onComplete();
     },
     onError: (err: any) => {
-      setError(err.response?.data?.detail || 'Failed to save diagnosis');
+      const detail = err.response?.data?.detail;
+      if (Array.isArray(detail)) {
+        // FastAPI validation errors
+        const messages = detail
+          .map((d: any) => `${d.loc?.join(' → ') || 'Field'}: ${d.msg}`)
+          .join('; ');
+        setError(messages);
+      } else if (typeof detail === 'string') {
+        setError(detail);
+      } else {
+        setError('Failed to save diagnosis');
+      }
     },
   });
 
