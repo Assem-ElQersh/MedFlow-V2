@@ -112,3 +112,13 @@ async def submit_session(
     """Submit session for VLM processing (nurse, admin)"""
     return await session_service.submit_session(db, session_id, current_user["user_id"])
 
+
+@router.delete("/{session_id}")
+async def delete_session(
+    session_id: str,
+    current_user: Dict = Depends(require_role(["nurse", "admin"])),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Delete session (nurse, admin - only if not completed)"""
+    return await session_service.delete_session(db, session_id, current_user["user_id"])
+

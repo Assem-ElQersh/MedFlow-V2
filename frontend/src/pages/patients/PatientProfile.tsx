@@ -18,10 +18,18 @@ import {
   IconButton,
   CircularProgress,
   Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Alert,
+  Snackbar,
 } from '@mui/material';
-import { ArrowBack, Edit, Add } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { ArrowBack, Edit, Add, Delete } from '@mui/icons-material';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { patientService } from '../../services/patientService';
+import { sessionService } from '../../services/sessionService';
 import { useAuth } from '../../contexts/AuthContext';
 
 interface TabPanelProps {
@@ -43,15 +51,55 @@ const PatientProfile: React.FC = () => {
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   
   // Check if user has permission to edit patients (nurse, doctor, admin)
   const canEditPatient = user && ['nurse', 'doctor', 'admin'].includes(user.role);
+  const canDeleteSession = user && ['nurse', 'admin'].includes(user.role);
+  
+  // Delete session state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+  const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' as 'success' | 'error' });
 
   const { data: portfolio, isLoading } = useQuery({
     queryKey: ['patient', 'portfolio', patientId],
     queryFn: () => patientService.getPatientPortfolio(patientId!),
     enabled: !!patientId,
   });
+
+  // Delete session mutation
+  const deleteMutation = useMutation({
+    mutationFn: (sessionId: string) => sessionService.deleteSession(sessionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient', 'portfolio', patientId] });
+      setSnackbar({ open: true, message: 'Session deleted successfully', severity: 'success' });
+      setDeleteDialogOpen(false);
+      setSessionToDelete(null);
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Failed to delete session';
+      setSnackbar({ open: true, message, severity: 'error' });
+      setDeleteDialogOpen(false);
+    },
+  });
+
+  const handleDeleteClick = (sessionId: string, event: React.MouseEvent) => {
+    event.stopPropagation(); // Prevent row click
+    setSessionToDelete(sessionId);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDeleteConfirm = () => {
+    if (sessionToDelete) {
+      deleteMutation.mutate(sessionToDelete);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setDeleteDialogOpen(false);
+    setSessionToDelete(null);
+  };
 
   if (isLoading) {
     return (
@@ -300,6 +348,7 @@ const PatientProfile: React.FC = () => {
                       <TableCell>Chief Complaint</TableCell>
                       <TableCell>Doctor</TableCell>
                       <TableCell>Status</TableCell>
+                      {canDeleteSession && <TableCell align="center">Actions</TableCell>}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -330,6 +379,20 @@ const PatientProfile: React.FC = () => {
                             }
                           />
                         </TableCell>
+                        {canDeleteSession && (
+                          <TableCell align="center">
+                            {session.session_status !== 'completed' && (
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={(e) => handleDeleteClick(session.session_id, e)}
+                                title="Delete session"
+                              >
+                                <Delete />
+                              </IconButton>
+                            )}
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>
@@ -356,6 +419,46 @@ const PatientProfile: React.FC = () => {
           </Box>
         </TabPanel>
       </Paper>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onClose={handleDeleteCancel}>
+        <DialogTitle>Delete Session</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete session <strong>{sessionToDelete}</strong>?
+            This action cannot be undone. All session data including uploaded files will be permanently deleted.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleDeleteCancel} color="inherit">
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleDeleteConfirm} 
+            color="error" 
+            variant="contained"
+            disabled={deleteMutation.isPending}
+          >
+            {deleteMutation.isPending ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Snackbar for notifications */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={6000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={() => setSnackbar({ ...snackbar, open: false })} 
+          severity={snackbar.severity}
+          sx={{ width: '100%' }}
+        >
+          {snackbar.message}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

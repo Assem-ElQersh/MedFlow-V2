@@ -78,9 +78,25 @@ const SessionReview: React.FC = () => {
 
   const patient = patientPortfolio?.patient;
   const vlmOutput = session.vlm_initial_output;
-  const vlmFailed = session.vlm_initial_status === 'failed' || session.session_status === 'vlm_failed';
+  const vlmStatus = session.vlm_initial_status || 'pending';
+  const vlmFailed = vlmStatus === 'failed' || session.session_status === 'vlm_failed';
+  const vlmProcessing = vlmStatus === 'processing' || session.session_status === 'vlm_processing';
+  const vlmCompleted = vlmStatus === 'completed' && !!vlmOutput;
 
   const canClose = !!session.diagnosis;
+  
+  // Get VLM status display
+  const getVLMStatusChip = () => {
+    if (vlmCompleted) {
+      return { label: 'VLM Analysis Complete', color: 'success' as const, icon: '✓' };
+    } else if (vlmFailed) {
+      return { label: 'VLM Processing Failed', color: 'error' as const, icon: '✗' };
+    } else if (vlmProcessing) {
+      return { label: 'VLM Processing...', color: 'info' as const, icon: '⟳' };
+    } else {
+      return { label: 'Awaiting VLM Response', color: 'warning' as const, icon: '⏳' };
+    }
+  };
 
   return (
     <Box>
@@ -292,8 +308,19 @@ const SessionReview: React.FC = () => {
         {/* Tab 4: VLM Analysis */}
         <TabPanel value={tabValue} index={3}>
           <Box sx={{ px: 3 }}>
+            {/* VLM Status Banner */}
+            <Box display="flex" alignItems="center" justifyContent="space-between" mb={3}>
+              <Typography variant="h6">VLM Analysis Status</Typography>
+              <Chip
+                label={`${getVLMStatusChip().icon} ${getVLMStatusChip().label}`}
+                color={getVLMStatusChip().color}
+                size="medium"
+                sx={{ fontWeight: 'bold', px: 2 }}
+              />
+            </Box>
+            
             {vlmFailed ? (
-              <Alert severity="warning" sx={{ mb: 3 }}>
+              <Alert severity="error" sx={{ mb: 3 }}>
                 <Typography variant="h6" gutterBottom>
                   VLM Processing Failed
                 </Typography>
@@ -303,8 +330,12 @@ const SessionReview: React.FC = () => {
                   is still available for your review. You can proceed with diagnosis based on 
                   the available information.
                 </Typography>
+                <Typography variant="body2" sx={{ mt: 2, fontStyle: 'italic' }}>
+                  Note: The system attempted to use MedGemma-4B and BioGPT models but both failed.
+                  All patient data remains accessible for manual review.
+                </Typography>
               </Alert>
-            ) : vlmOutput ? (
+            ) : vlmCompleted && vlmOutput ? (
               <>
                 <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.50' }}>
                   <Typography variant="h6" gutterBottom>
@@ -358,12 +389,36 @@ const SessionReview: React.FC = () => {
                 </Typography>
                 <VLMChat sessionId={session.session_id} chatHistory={session.vlm_chat_history} />
               </>
-            ) : (
-              <Box textAlign="center" py={4}>
-                <CircularProgress sx={{ mb: 2 }} />
-                <Typography variant="h6" color="text.secondary">
-                  VLM Processing in progress...
+            ) : vlmProcessing ? (
+              <Box textAlign="center" py={6}>
+                <CircularProgress size={60} sx={{ mb: 3 }} />
+                <Typography variant="h5" color="primary" gutterBottom>
+                  VLM Processing in Progress...
                 </Typography>
+                <Typography variant="body1" color="text.secondary" paragraph>
+                  The VLM system is analyzing the patient's medical data, uploaded files, and clinical presentation.
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  This may take 30-60 seconds. You can access all patient data while waiting,
+                  or check back later if you prefer.
+                </Typography>
+                <Alert severity="info" sx={{ mt: 3, maxWidth: 600, mx: 'auto' }}>
+                  <Typography variant="body2">
+                    <strong>Tip:</strong> You can start reviewing patient history and session data in other tabs
+                    while VLM processing completes. This page auto-refreshes every 5 seconds.
+                  </Typography>
+                </Alert>
+              </Box>
+            ) : (
+              <Box textAlign="center" py={6}>
+                <Typography variant="h6" color="text.secondary" gutterBottom>
+                  Awaiting VLM Response
+                </Typography>
+                <Typography variant="body2" color="text.secondary" paragraph>
+                  The VLM system has not yet started processing this session.
+                  It should begin shortly.
+                </Typography>
+                <CircularProgress size={40} sx={{ mt: 2 }} />
               </Box>
             )}
           </Box>

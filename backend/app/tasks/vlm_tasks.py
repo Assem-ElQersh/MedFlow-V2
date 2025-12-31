@@ -2,10 +2,13 @@ from celery import Task
 from celery_app import celery_app
 from motor.motor_asyncio import AsyncIOMotorClient
 from app.core.config import settings
-from app.services.vlm_service import mock_vlm_service
+from app.services.medgemma_service import medgemma_service
 from app.models.session import SessionStatus
 from datetime import datetime
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class DatabaseTask(Task):
@@ -81,8 +84,13 @@ def process_session_vlm(self, session_id: str):
                         f"Notes: {diagnosis.get('doctor_notes', 'N/A')}"
                     )
             
-            # Process with mock VLM
-            vlm_output = mock_vlm_service.process_initial_session(
+            # Check if HF_TOKEN is set - fail immediately if not
+            if not settings.HF_TOKEN:
+                raise Exception("HF_TOKEN not configured. VLM processing requires valid Hugging Face token.")
+            
+            # Process with real VLM only (MedGemma or BioGPT)
+            logger.info(f"Processing session {session_id} with real VLM (MedGemma/BioGPT)")
+            vlm_output = medgemma_service.process_initial_session(
                 patient_context=patient_context,
                 chief_complaint=session["chief_complaint"],
                 current_state=session["current_state_description"],
@@ -125,7 +133,9 @@ def process_session_vlm(self, session_id: str):
             return {"success": True, "session_id": session_id}
             
         except Exception as e:
-            # Update status to vlm_failed
+            # Update status to vlm_failed with error details
+            error_message = str(e)
+            logger.error(f"VLM processing failed for session {session_id}: {error_message}")
             now = datetime.utcnow()
             await self.db.sessions.update_one(
                 {"session_id": session_id},
@@ -133,6 +143,7 @@ def process_session_vlm(self, session_id: str):
                     "$set": {
                         "session_status": SessionStatus.vlm_failed,
                         "vlm_initial_status": "failed",
+                        "vlm_error_message": error_message,
                         "last_updated": now
                     },
                     "$push": {
@@ -144,7 +155,8 @@ def process_session_vlm(self, session_id: str):
                     }
                 }
             )
-            raise e
+            # Don't re-raise - task succeeded in marking as failed
+            return {"success": True, "session_id": session_id, "vlm_status": "failed"}
     
     # Run async function
     loop = asyncio.get_event_loop()

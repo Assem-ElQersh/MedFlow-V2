@@ -320,6 +320,55 @@ async def submit_session(
     return await get_session(db, session_id)
 
 
+async def delete_session(
+    db: AsyncIOMotorDatabase,
+    session_id: str,
+    deleted_by: str
+) -> Dict:
+    """Delete a session (only if not completed)"""
+    session_doc = await db.sessions.find_one({"session_id": session_id})
+    
+    if not session_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+    
+    # Only allow deletion if session is not completed
+    if session_doc["session_status"] == SessionStatus.completed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Cannot delete a completed session"
+        )
+    
+    # Delete all uploaded files from storage
+    for file in session_doc.get("uploaded_files", []):
+        try:
+            # Delete from cloud storage if file_path exists
+            if file.get("file_path"):
+                # TODO: Implement actual file deletion from GCS
+                # storage_service.delete_file(file["file_path"])
+                pass
+        except Exception as e:
+            # Log error but continue with deletion
+            print(f"Error deleting file {file.get('file_id')}: {str(e)}")
+    
+    # Delete the session document
+    result = await db.sessions.delete_one({"session_id": session_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete session"
+        )
+    
+    return {
+        "success": True,
+        "message": f"Session {session_id} deleted successfully",
+        "deleted_by": deleted_by
+    }
+
+
 async def get_sessions_for_doctor_queue(
     db: AsyncIOMotorDatabase,
     doctor_id: Optional[str] = None,

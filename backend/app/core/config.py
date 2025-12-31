@@ -28,6 +28,11 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
     
+    # Hugging Face
+    HF_TOKEN: str = ""
+    MEDGEMMA_MODEL: str = "google/medgemma-4b-it"  # Primary medical VLM (instruction-tuned)
+    BIOGPT_MODEL: str = "microsoft/biogpt"  # Fallback medical text model (lowercase)
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

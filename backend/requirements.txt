@@ -31,3 +31,6 @@ reportlab==4.0.7
 # CORS
 fastapi-cors==0.0.6
 
+# Hugging Face for MedGemma VLM
+huggingface-hub==1.2.3
+

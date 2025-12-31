@@ -71,5 +71,10 @@ export const sessionService = {
     );
     return response.data;
   },
+
+  // Delete session
+  deleteSession: async (sessionId: string): Promise<void> => {
+    await axiosInstance.delete(`${API_V1_PREFIX}/sessions/${sessionId}`);
+  },
 };
 
