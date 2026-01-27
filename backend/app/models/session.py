@@ -151,6 +151,9 @@ class Session(SessionBase):
     # Doctor-VLM Chat
     vlm_chat_history: List[VLMChatMessage] = []
     
+    # Additional context provided by doctors
+    vlm_additional_context: List[Dict[str, Any]] = []
+    
     # Doctor review
     doctor_id: Optional[str] = None
     doctor_name: Optional[str] = None

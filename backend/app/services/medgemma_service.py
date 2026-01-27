@@ -106,6 +106,75 @@ class MedGemmaService:
                 # Both models failed - raise exception to mark VLM as failed
                 raise Exception(f"All VLM models failed. Primary: {str(e1)}, Fallback: {str(e2)}")
     
+    def process_reanalysis_with_context(
+        self,
+        patient_context: Dict[str, Any],
+        chief_complaint: str,
+        current_state: str,
+        additional_context: str,
+        original_vlm_output: Dict[str, Any],
+        previous_chat: List[Dict[str, Any]],
+        last_session_summary: Optional[str] = None,
+        files_count: int = 0
+    ) -> Dict[str, Any]:
+        """Reanalyze session with additional doctor-provided context"""
+        
+        start_time = time.time()
+        
+        try:
+            # Build enhanced prompt with original analysis and new context
+            prompt = self._build_reanalysis_prompt(
+                patient_context,
+                chief_complaint,
+                current_state,
+                additional_context,
+                original_vlm_output,
+                previous_chat,
+                last_session_summary,
+                files_count
+            )
+            
+            logger.info(f"Reanalyzing session with additional context (prompt length: {len(prompt)} chars)")
+            
+            # Call Hugging Face Inference API (try primary first)
+            try:
+                response = self.client.text_generation(
+                    prompt,
+                    model=self.primary_model,
+                    max_new_tokens=1000,
+                    temperature=0.7,
+                    top_p=0.9,
+                    repetition_penalty=1.1,
+                )
+                model_used = "primary"
+            except Exception as e_primary:
+                logger.warning(f"Primary model failed in reanalysis: {str(e_primary)}, trying fallback")
+                response = self.client.text_generation(
+                    prompt,
+                    model=self.fallback_model,
+                    max_new_tokens=1000,
+                    temperature=0.7,
+                    top_p=0.9,
+                    repetition_penalty=1.1,
+                )
+                model_used = "fallback"
+            
+            logger.info(f"SUCCESS: Received reanalysis response (length: {len(response)} chars)")
+            
+            # Parse the response into structured format
+            parsed_output = self._parse_initial_response(response, patient_context, chief_complaint)
+            
+            processing_time = int(time.time() - start_time)
+            parsed_output["processing_time_seconds"] = processing_time
+            parsed_output["model_version"] = f"{self.primary_model if model_used == 'primary' else self.fallback_model} (reanalysis)"
+            parsed_output["model_used"] = model_used
+            
+            return parsed_output
+            
+        except Exception as e:
+            logger.error(f"Error in reanalysis with context: {str(e)}")
+            raise Exception(f"VLM reanalysis failed: {str(e)}")
+    
     def process_doctor_query(
         self,
         patient_context: Dict[str, Any],
@@ -118,12 +187,16 @@ class MedGemmaService:
         start_time = time.time()
         
         try:
+            # Get additional contexts from session
+            additional_contexts = session_context.get("additional_contexts", [])
+            
             # Build conversational prompt
             prompt = self._build_chat_prompt(
                 patient_context,
                 session_context,
                 doctor_query,
-                previous_chat
+                previous_chat,
+                additional_contexts
             )
             
             logger.info(f"Sending doctor query to MedGemma")
@@ -160,6 +233,99 @@ class MedGemmaService:
             logger.error(f"Error in doctor query to MedGemma: {str(e)}")
             # Don't return fake response - raise exception
             raise Exception(f"VLM chat failed: {str(e)}")
+    
+    def _build_reanalysis_prompt(
+        self,
+        patient_context: Dict,
+        chief_complaint: str,
+        current_state: str,
+        additional_context: str,
+        original_vlm_output: Dict,
+        previous_chat: List[Dict],
+        last_session_summary: Optional[str],
+        files_count: int
+    ) -> str:
+        """Build a prompt for reanalysis with additional doctor-provided context"""
+        
+        age = patient_context.get("age", "unknown")
+        sex = patient_context.get("sex", "unknown")
+        chronic_diseases = patient_context.get("chronic_diseases", [])
+        medications = patient_context.get("current_medications", [])
+        
+        prompt = f"""You are a medical AI assistant. A doctor has provided additional clinical context about this case that requires reanalysis.
+
+PATIENT INFORMATION:
+- Age: {age} years
+- Sex: {sex}
+- Chronic Conditions: {', '.join(chronic_diseases) if chronic_diseases else 'None'}
+- Current Medications: {', '.join(medications) if medications else 'None'}
+
+PRESENTING COMPLAINT:
+{chief_complaint}
+
+CURRENT STATE:
+{current_state}
+"""
+        
+        if last_session_summary:
+            prompt += f"\nPREVIOUS SESSION:\n{last_session_summary}\n"
+        
+        if files_count > 0:
+            prompt += f"\nNOTE: {files_count} medical file(s) uploaded (X-rays, CT scans, or lab results).\n"
+        
+        # Add original analysis
+        prompt += f"""
+ORIGINAL VLM ANALYSIS:
+{original_vlm_output.get('findings', 'No previous findings available')}
+
+KEY OBSERVATIONS FROM ORIGINAL ANALYSIS:
+"""
+        for obs in original_vlm_output.get('key_observations', []):
+            prompt += f"- {obs}\n"
+        
+        # Add doctor's additional context
+        prompt += f"""
+ADDITIONAL CONTEXT FROM DOCTOR:
+{additional_context}
+
+"""
+        
+        # Add conversation history if any
+        if previous_chat:
+            prompt += "PREVIOUS CONVERSATION SUMMARY:\n"
+            for msg in previous_chat[-4:]:  # Last 2 exchanges
+                sender = "Doctor" if msg.get("sender") == "doctor" else "AI"
+                content = msg.get("content", "")
+                prompt += f"{sender}: {content[:200]}\n"  # Truncate long messages
+        
+        prompt += """
+Please provide an UPDATED comprehensive medical analysis that INTEGRATES the new context with the original findings. Focus on how this new information changes or refines the assessment.
+
+Provide your analysis in the following format:
+
+FINDINGS:
+[Updated clinical findings incorporating the new context]
+
+KEY OBSERVATIONS:
+1. [First key observation - updated or new]
+2. [Second key observation - updated or new]
+3. [Third key observation - updated or new]
+
+TECHNICAL ASSESSMENT:
+[Updated technical evaluation with new context]
+
+SUGGESTED CONSIDERATIONS:
+1. [First consideration - updated with new information]
+2. [Second consideration - updated with new information]
+3. [Third consideration - updated with new information]
+
+DIFFERENTIAL PATTERNS:
+1. [First differential diagnosis - updated]
+2. [Second differential diagnosis - updated]
+3. [Third differential diagnosis - updated]
+"""
+        
+        return prompt
     
     def _build_initial_prompt(
         self,
@@ -229,7 +395,8 @@ DIFFERENTIAL PATTERNS:
         patient_context: Dict,
         session_context: Dict,
         doctor_query: str,
-        previous_chat: List[Dict]
+        previous_chat: List[Dict],
+        additional_contexts: List[Dict] = []
     ) -> str:
         """Build a conversational prompt for doctor-VLM chat"""
         
@@ -238,6 +405,12 @@ DIFFERENTIAL PATTERNS:
 PATIENT: {patient_context.get('age')} year old {patient_context.get('sex')}
 CHIEF COMPLAINT: {session_context.get('chief_complaint', 'N/A')}
 """
+        
+        # Add additional contexts if any
+        if additional_contexts:
+            prompt += "\nADDITIONAL CLINICAL CONTEXT PROVIDED BY DOCTOR:\n"
+            for ctx in additional_contexts:
+                prompt += f"- {ctx.get('content', '')}\n"
         
         # Add previous chat context (last 3 exchanges)
         if previous_chat:

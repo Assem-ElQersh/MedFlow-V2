@@ -46,6 +46,13 @@ export interface Session extends SessionCreate {
   vlm_initial_status: string;
   vlm_initial_output?: any;
   vlm_chat_history: any[];
+  vlm_additional_context?: Array<{
+    context_id: string;
+    timestamp: string;
+    provided_by: string;
+    content: string;
+    triggered_reanalysis: boolean;
+  }>;
   doctor_id?: string;
   doctor_name?: string;
   diagnosis?: any;

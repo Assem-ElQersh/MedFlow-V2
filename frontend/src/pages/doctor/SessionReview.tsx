@@ -18,7 +18,13 @@ import {
   DialogActions,
   Alert,
 } from '@mui/material';
-import { ArrowBack, CheckCircle } from '@mui/icons-material';
+import { 
+  ArrowBack, 
+  CheckCircle, 
+  AddCircleOutline, 
+  Autorenew as AutorenewIcon, 
+  Update as UpdateIcon 
+} from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { doctorService } from '../../services/doctorService';
 import { patientService } from '../../services/patientService';
@@ -46,6 +52,8 @@ const SessionReview: React.FC = () => {
   const queryClient = useQueryClient();
   const [tabValue, setTabValue] = useState(0);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [additionalContext, setAdditionalContext] = useState('');
+  const [isReanalyzing, setIsReanalyzing] = useState(false);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['doctor', 'session', sessionId],
@@ -67,6 +75,26 @@ const SessionReview: React.FC = () => {
       navigate('/doctor/queue');
     },
   });
+
+  const reanalyzeMutation = useMutation({
+    mutationFn: (context: string) => doctorService.reanalyzeWithContext(sessionId!, context),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['doctor', 'session', sessionId] });
+      setAdditionalContext('');
+      setIsReanalyzing(false);
+    },
+    onError: (error: any) => {
+      console.error('Reanalysis failed:', error);
+      setIsReanalyzing(false);
+    }
+  });
+
+  const handleReanalyze = () => {
+    if (additionalContext.trim()) {
+      setIsReanalyzing(true);
+      reanalyzeMutation.mutate(additionalContext);
+    }
+  };
 
   if (isLoading || !session) {
     return (
@@ -337,10 +365,65 @@ const SessionReview: React.FC = () => {
               </Alert>
             ) : vlmCompleted && vlmOutput ? (
               <>
-                <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.50' }}>
-                  <Typography variant="h6" gutterBottom>
-                    VLM Initial Analysis
+                {/* Additional Context Section */}
+                <Paper sx={{ p: 3, mb: 3, bgcolor: 'info.50', border: '2px solid', borderColor: 'info.main' }}>
+                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <AddCircleOutline /> Add Additional Medical Context
                   </Typography>
+                  <Typography variant="body2" color="text.secondary" paragraph>
+                    Provide additional information (e.g., undisclosed conditions, new symptoms, or clarifications) 
+                    to reanalyze this case with updated context.
+                  </Typography>
+                  
+                  <Box
+                    component="textarea"
+                    placeholder="Example: Patient mentioned they also have Type 2 Diabetes that was not disclosed to the nurse..."
+                    value={additionalContext}
+                    onChange={(e: any) => setAdditionalContext(e.target.value)}
+                    disabled={isReanalyzing}
+                    style={{
+                      width: '100%',
+                      minHeight: '100px',
+                      padding: '12px',
+                      fontSize: '14px',
+                      fontFamily: 'inherit',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      resize: 'vertical',
+                      marginBottom: '16px'
+                    }}
+                  />
+                  
+                  <Box display="flex" gap={2} alignItems="center">
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={isReanalyzing ? <CircularProgress size={20} /> : <AutorenewIcon />}
+                      onClick={handleReanalyze}
+                      disabled={!additionalContext.trim() || isReanalyzing}
+                    >
+                      {isReanalyzing ? 'Reanalyzing...' : 'Reanalyze with Context'}
+                    </Button>
+                    <Typography variant="caption" color="text.secondary">
+                      This will update the VLM analysis below and add to conversation history
+                    </Typography>
+                  </Box>
+                </Paper>
+
+                <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.50' }}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                    <Typography variant="h6">
+                      VLM Initial Analysis
+                    </Typography>
+                    {session.vlm_additional_context && session.vlm_additional_context.length > 0 && (
+                      <Chip 
+                        icon={<UpdateIcon />}
+                        label={`Updated ${session.vlm_additional_context.length} time(s)`}
+                        color="info"
+                        size="small"
+                      />
+                    )}
+                  </Box>
                   <Typography variant="body1" paragraph>
                     {vlmOutput.findings}
                   </Typography>
