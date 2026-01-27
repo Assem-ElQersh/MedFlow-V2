@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # MongoDB Database
   mongodb:
@@ -13,7 +11,6 @@ services:
       - MONGO_INITDB_DATABASE=medflow
     networks:
       - medflow-network
-    restart: unless-stopped
 
   # Redis (for Celery)
   redis:
@@ -23,7 +20,6 @@ services:
       - "6379:6379"
     networks:
       - medflow-network
-    restart: unless-stopped
 
   # FastAPI Backend
   backend:
@@ -40,12 +36,13 @@ services:
       - SECRET_KEY=change-this-in-production-use-strong-secret
       - DEBUG=True
       - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://localhost:3000"]
+      - MEDGEMMA_MODEL=google/medgemma-1.5-4b-it
+      - HF_TOKEN=${HF_TOKEN:-}
     depends_on:
       - mongodb
       - redis
     networks:
       - medflow-network
-    restart: unless-stopped
     volumes:
       - ./backend:/app
 
@@ -60,12 +57,13 @@ services:
       - MONGODB_URL=mongodb://mongodb:27017
       - MONGODB_DB_NAME=medflow
       - REDIS_URL=redis://redis:6379/0
+      - MEDGEMMA_MODEL=google/medgemma-1.5-4b-it
+      - HF_TOKEN=${HF_TOKEN:-}
     depends_on:
       - mongodb
       - redis
     networks:
       - medflow-network
-    restart: unless-stopped
     volumes:
       - ./backend:/app
 
@@ -83,7 +81,6 @@ services:
       - backend
     networks:
       - medflow-network
-    restart: unless-stopped
     volumes:
       - ./frontend:/app
       - /app/node_modules

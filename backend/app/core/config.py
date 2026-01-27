@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     
     # Hugging Face
     HF_TOKEN: str = ""
-    MEDGEMMA_MODEL: str = "google/medgemma-4b-it"  # Primary medical VLM (instruction-tuned)
+    MEDGEMMA_MODEL: str = "google/medgemma-1.5-4b-it"  # Primary medical VLM (instruction-tuned, v1.5)
     BIOGPT_MODEL: str = "microsoft/biogpt"  # Fallback medical text model (lowercase)
     
     class Config:

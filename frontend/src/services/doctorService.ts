@@ -64,6 +64,15 @@ export const doctorService = {
     return response.data;
   },
 
+  // Reanalyze session with additional context
+  reanalyzeWithContext: async (sessionId: string, context: string): Promise<any> => {
+    const response = await axiosInstance.post(
+      `${API_V1_PREFIX}/doctor/sessions/${sessionId}/reanalyze`,
+      { content: context }
+    );
+    return response.data;
+  },
+
   // Submit diagnosis
   submitDiagnosis: async (sessionId: string, diagnosis: Diagnosis): Promise<void> => {
     await axiosInstance.put(

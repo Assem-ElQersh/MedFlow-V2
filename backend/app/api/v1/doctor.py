@@ -120,7 +120,8 @@ async def chat_with_vlm(
     session_context = {
         "chief_complaint": session_doc.get("chief_complaint"),
         "current_state": session_doc.get("current_state_description"),
-        "vlm_initial_output": session_doc.get("vlm_initial_output")
+        "vlm_initial_output": session_doc.get("vlm_initial_output"),
+        "additional_contexts": session_doc.get("vlm_additional_context", [])
     }
     
     # Get VLM response
@@ -148,6 +149,100 @@ async def chat_with_vlm(
     )
     
     return chat_message
+
+
+@router.post("/sessions/{session_id}/reanalyze")
+async def reanalyze_with_context(
+    session_id: str,
+    context_data: Dict[str, str],
+    current_user: Dict = Depends(require_role(["doctor", "admin"])),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
+    """Reanalyze session with doctor-provided additional context"""
+    session_doc = await db.sessions.find_one({"session_id": session_id})
+    
+    if not session_doc:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Session not found"
+        )
+    
+    # Get patient context
+    patient = await db.patients.find_one({"patient_id": session_doc["patient_id"]})
+    patient_context = {
+        "age": patient.get("age"),
+        "sex": patient.get("sex"),
+        "chronic_diseases": patient.get("chronic_diseases", []),
+        "current_medications": patient.get("current_medications", [])
+    }
+    
+    # Call reanalysis service
+    from app.services.medgemma_service import medgemma_service
+    try:
+        updated_output = medgemma_service.process_reanalysis_with_context(
+            patient_context=patient_context,
+            chief_complaint=session_doc["chief_complaint"],
+            current_state=session_doc["current_state_description"],
+            additional_context=context_data.get("content", ""),
+            original_vlm_output=session_doc.get("vlm_initial_output", {}),
+            previous_chat=session_doc.get("vlm_chat_history", []),
+            last_session_summary=None,
+            files_count=len(session_doc.get("uploaded_files", []))
+        )
+    except Exception as e:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"VLM reanalysis failed: {str(e)}"
+        )
+    
+    # Create context record
+    context_id = f"CTX-{uuid.uuid4().hex[:8]}"
+    context_record = {
+        "context_id": context_id,
+        "timestamp": datetime.utcnow(),
+        "provided_by": current_user["user_id"],
+        "content": context_data.get("content", ""),
+        "triggered_reanalysis": True
+    }
+    
+    # Create chat message for audit trail
+    message_id = f"M-{uuid.uuid4().hex[:8]}"
+    chat_message = {
+        "message_id": message_id,
+        "timestamp": datetime.utcnow(),
+        "sender": "doctor",
+        "content": f"[Context Added] {context_data.get('content', '')}",
+        "vlm_response": {
+            "findings": "Analysis updated with new context. See updated analysis above.",
+            "processing_time": updated_output.get("processing_time_seconds", 0)
+        }
+    }
+    
+    # Update database
+    now = datetime.utcnow()
+    await db.sessions.update_one(
+        {"session_id": session_id},
+        {
+            "$set": {
+                "vlm_initial_output": updated_output,
+                "last_updated": now,
+                "last_updated_by": current_user["user_id"]
+            },
+            "$push": {
+                "vlm_additional_context": context_record,
+                "vlm_chat_history": chat_message
+            }
+        }
+    )
+    
+    return {
+        "success": True,
+        "context_id": context_id,
+        "updated_output": updated_output,
+        "message": "Analysis updated with additional context"
+    }
 
 
 @router.put("/sessions/{session_id}/diagnosis")
