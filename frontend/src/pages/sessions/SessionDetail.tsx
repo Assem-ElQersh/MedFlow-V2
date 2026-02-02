@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -24,6 +24,7 @@ import { ArrowBack } from '@mui/icons-material';
 import { useQuery } from '@tanstack/react-query';
 import { sessionService } from '../../services/sessionService';
 import { patientService } from '../../services/patientService';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -43,6 +44,7 @@ const SessionDetail: React.FC = () => {
   const { sessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
   const [tabValue, setTabValue] = useState(0);
+  const { user } = useAuth();
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['session', sessionId],
@@ -55,6 +57,13 @@ const SessionDetail: React.FC = () => {
     queryFn: () => patientService.getPatientPortfolio(session!.patient_id),
     enabled: !!session?.patient_id,
   });
+
+  // Redirect nurses to edit page if session is still in draft
+  useEffect(() => {
+    if (session && user?.role === 'nurse' && session.session_status === 'draft') {
+      navigate(`/sessions/new?edit=${sessionId}`, { replace: true });
+    }
+  }, [session, user, sessionId, navigate]);
 
   if (isLoading || !session) {
     return (

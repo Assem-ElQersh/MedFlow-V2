@@ -3,7 +3,9 @@ from typing import List, Dict, Optional
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.models.session import SessionSummary, Session, SessionStatus, Diagnosis, PendingTests
 from app.services import session_service
-from app.services.vlm_service import mock_vlm_service
+from app.services.medgemma_service import medgemma_service
+from app.services.log_service import log_service
+from app.models.log import LogLevel, LogCategory
 from app.core.database import get_database
 from app.core.security import get_current_user, require_role
 from datetime import datetime
@@ -88,6 +90,20 @@ async def get_session_for_review(
                 }
             }
         )
+        
+        # Log session review started
+        await log_service.create_log(
+            db=db,
+            level=LogLevel.INFO,
+            category=LogCategory.SESSION,
+            message=f"Doctor started reviewing session",
+            user_id=current_user["user_id"],
+            user_name=doctor_name,
+            user_role="doctor",
+            session_id=session_id,
+            patient_id=session_doc["patient_id"],
+            patient_name=session_doc["patient_name"]
+        )
     
     return await session_service.get_session(db, session_id)
 
@@ -124,13 +140,20 @@ async def chat_with_vlm(
         "additional_contexts": session_doc.get("vlm_additional_context", [])
     }
     
-    # Get VLM response
-    vlm_response = mock_vlm_service.process_doctor_query(
-        patient_context=patient_context,
-        session_context=session_context,
-        doctor_query=message.get("content", ""),
-        previous_chat=session_doc.get("vlm_chat_history", [])
-    )
+    # Get VLM response using real MedGemma service
+    try:
+        vlm_response = medgemma_service.process_doctor_query(
+            patient_context=patient_context,
+            session_context=session_context,
+            doctor_query=message.get("content", ""),
+            previous_chat=session_doc.get("vlm_chat_history", [])
+        )
+    except Exception as e:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"VLM chat failed: {str(e)}"
+        )
     
     # Create chat message
     message_id = f"M-{uuid.uuid4().hex[:8]}"
@@ -177,8 +200,7 @@ async def reanalyze_with_context(
         "current_medications": patient.get("current_medications", [])
     }
     
-    # Call reanalysis service
-    from app.services.medgemma_service import medgemma_service
+    # Call reanalysis service using real MedGemma
     try:
         updated_output = medgemma_service.process_reanalysis_with_context(
             patient_context=patient_context,
@@ -192,6 +214,8 @@ async def reanalyze_with_context(
         )
     except Exception as e:
         from fastapi import HTTPException, status
+        import traceback
+        traceback.print_exc()  # Log full traceback for debugging
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"VLM reanalysis failed: {str(e)}"
@@ -406,6 +430,26 @@ async def close_session(
                 "last_session_date": now
             },
             "$inc": {"total_sessions": 1}
+        }
+    )
+    
+    # Log session closure
+    user_doc = await db.users.find_one({"user_id": current_user["user_id"]})
+    await log_service.create_log(
+        db=db,
+        level=LogLevel.SUCCESS,
+        category=LogCategory.SESSION,
+        message=f"Session completed - Status: {final_status.value}",
+        user_id=current_user["user_id"],
+        user_name=user_doc.get("full_name") if user_doc else None,
+        user_role=user_doc.get("role") if user_doc else None,
+        session_id=session_id,
+        patient_id=session_doc["patient_id"],
+        patient_name=session_doc["patient_name"],
+        details={
+            "status": final_status.value,
+            "has_follow_up": follow_up_session_id is not None,
+            "follow_up_session_id": follow_up_session_id
         }
     )
     

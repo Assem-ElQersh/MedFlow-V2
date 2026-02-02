@@ -84,12 +84,12 @@ def process_session_vlm(self, session_id: str):
                         f"Notes: {diagnosis.get('doctor_notes', 'N/A')}"
                     )
             
-            # Check if HF_TOKEN is set - fail immediately if not
-            if not settings.HF_TOKEN:
-                raise Exception("HF_TOKEN not configured. VLM processing requires valid Hugging Face token.")
+            # Check if remote URL is set
+            if not settings.MEDGEMMA_REMOTE_URL:
+                raise Exception("MEDGEMMA_REMOTE_URL not configured. Please set your Colab ngrok URL in environment variables.")
             
-            # Process with real VLM only (MedGemma or BioGPT)
-            logger.info(f"Processing session {session_id} with real VLM (MedGemma/BioGPT)")
+            # Process with remote MedGemma on Colab
+            logger.info(f"Processing session {session_id} with remote MedGemma service")
             vlm_output = medgemma_service.process_initial_session(
                 patient_context=patient_context,
                 chief_complaint=session["chief_complaint"],

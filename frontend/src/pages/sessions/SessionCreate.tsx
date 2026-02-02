@@ -28,10 +28,11 @@ const SessionCreate: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const patientIdFromUrl = searchParams.get('patientId');
+  const editSessionIdFromUrl = searchParams.get('edit'); // For editing existing drafts
 
   const [activeStep, setActiveStep] = useState(0);
   const [error, setError] = useState('');
-  const [createdSessionId, setCreatedSessionId] = useState<string | null>(null);
+  const [createdSessionId, setCreatedSessionId] = useState<string | null>(editSessionIdFromUrl);
 
   const [formData, setFormData] = useState<SessionCreateType>({
     patient_id: patientIdFromUrl || '',
@@ -40,6 +41,27 @@ const SessionCreate: React.FC = () => {
     chief_complaint: '',
     current_state_description: '',
   });
+
+  // Load existing draft session data if editing
+  const { data: existingSession, isLoading: loadingSession } = useQuery({
+    queryKey: ['session', editSessionIdFromUrl],
+    queryFn: () => sessionService.getSession(editSessionIdFromUrl!),
+    enabled: !!editSessionIdFromUrl,
+  });
+
+  // Populate form when editing existing session
+  useEffect(() => {
+    if (existingSession && editSessionIdFromUrl) {
+      setFormData({
+        patient_id: existingSession.patient_id,
+        session_type: existingSession.session_type,
+        assigned_doctor_id: existingSession.assigned_doctor_id,
+        chief_complaint: existingSession.chief_complaint,
+        current_state_description: existingSession.current_state_description,
+      });
+      setActiveStep(1); // Go directly to file upload step for existing sessions
+    }
+  }, [existingSession, editSessionIdFromUrl]);
 
   // Fetch patient data
   const { data: patientPortfolio, isLoading: loadingPatient } = useQuery({
@@ -63,6 +85,17 @@ const SessionCreate: React.FC = () => {
     },
     onError: (err: any) => {
       setError(err.response?.data?.detail || 'Failed to create session');
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: (data: { sessionId: string; updates: SessionCreateType }) =>
+      sessionService.updateSession(data.sessionId, data.updates),
+    onSuccess: () => {
+      setActiveStep(1); // Move to file upload step
+    },
+    onError: (err: any) => {
+      setError(err.response?.data?.detail || 'Failed to update session');
     },
   });
 
@@ -91,7 +124,14 @@ const SessionCreate: React.FC = () => {
   const handleCreateSession = (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    createMutation.mutate(formData);
+    
+    if (editSessionIdFromUrl) {
+      // Update existing draft session
+      updateMutation.mutate({ sessionId: editSessionIdFromUrl, updates: formData });
+    } else {
+      // Create new session
+      createMutation.mutate(formData);
+    }
   };
 
   const handleSubmitSession = () => {
@@ -105,8 +145,9 @@ const SessionCreate: React.FC = () => {
   };
 
   const steps = ['Session Details', 'Upload Files (Optional)', 'Review & Submit'];
+  const isEditMode = !!editSessionIdFromUrl;
 
-  if (loadingPatient) {
+  if (loadingPatient || (isEditMode && loadingSession)) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="60vh">
         <CircularProgress />
@@ -121,10 +162,17 @@ const SessionCreate: React.FC = () => {
           <ArrowBack />
         </IconButton>
         <Box>
-          <Typography variant="h4">Create New Session</Typography>
+          <Typography variant="h4">
+            {isEditMode ? 'Edit Draft Session' : 'Create New Session'}
+          </Typography>
           {patientPortfolio && (
             <Typography variant="body2" color="text.secondary">
               Patient: {patientPortfolio.patient.name} ({patientPortfolio.patient.patient_id})
+            </Typography>
+          )}
+          {isEditMode && existingSession && (
+            <Typography variant="body2" color="text.secondary">
+              Session ID: {existingSession.session_id} • Type: {existingSession.session_type.replace('_', ' ')}
             </Typography>
           )}
         </Box>

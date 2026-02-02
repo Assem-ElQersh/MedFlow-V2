@@ -1,9 +1,9 @@
 """
-MedGemma VLM Service using Hugging Face Inference API
+MedGemma VLM Service - Connects to remote Colab instance
 """
 import time
+import requests
 from typing import Dict, List, Any, Optional
-from huggingface_hub import InferenceClient
 from app.core.config import settings
 import logging
 
@@ -11,13 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class MedGemmaService:
-    """Real MedGemma VLM service using Hugging Face Inference API with fallback"""
+    """Real MedGemma VLM service - connects to remote Colab instance via HTTP"""
     
     def __init__(self):
-        self.primary_model = settings.MEDGEMMA_MODEL
-        self.fallback_model = settings.BIOGPT_MODEL
-        self.client = InferenceClient(token=settings.HF_TOKEN)
-        logger.info(f"Initialized MedGemma service - Primary: {self.primary_model}, Fallback: {self.fallback_model}")
+        self.remote_url = settings.MEDGEMMA_REMOTE_URL
+        self.model_version = "google/medgemma-1.5-4b-it"
+        self.request_timeout = 120  # 2 minutes timeout for VLM processing
+        logger.info(f"Initialized MedGemma service - Remote URL: {self.remote_url or 'NOT SET'}")
     
     def process_initial_session(
         self,
@@ -27,11 +27,13 @@ class MedGemmaService:
         last_session_summary: Optional[str] = None,
         files_count: int = 0
     ) -> Dict[str, Any]:
-        """Generate VLM initial output for a session using MedGemma with fallback to BioGPT"""
+        """Generate VLM initial output for a session by calling remote Colab instance"""
+        
+        if not self.remote_url:
+            raise Exception("MEDGEMMA_REMOTE_URL not configured. Please set your Colab ngrok URL in environment variables.")
         
         start_time = time.time()
         
-        # Try primary model first (MedGemma-4B)
         try:
             # Construct medical prompt
             prompt = self._build_initial_prompt(
@@ -42,69 +44,44 @@ class MedGemmaService:
                 files_count
             )
             
-            logger.info(f"Trying primary model {self.primary_model} (prompt length: {len(prompt)} chars)")
+            logger.info(f"Sending request to remote MedGemma service (prompt length: {len(prompt)} chars)")
             
-            # Call Hugging Face Inference API with primary model
-            response = self.client.text_generation(
-                prompt,
-                model=self.primary_model,
-                max_new_tokens=1000,
-                temperature=0.7,
-                top_p=0.9,
-                repetition_penalty=1.1,
+            # Call remote Colab instance via HTTP
+            response = requests.post(
+                f"{self.remote_url}/predict_text",
+                json={
+                    "text": prompt,
+                    "max_new_tokens": 1000
+                },
+                timeout=self.request_timeout
             )
             
-            logger.info(f"SUCCESS: Received response from {self.primary_model} (length: {len(response)} chars)")
+            if response.status_code != 200:
+                raise Exception(f"Remote service returned status {response.status_code}: {response.text}")
+            
+            response_data = response.json()
+            model_response = response_data.get("response", "")
+            
+            logger.info(f"SUCCESS: Received response from remote MedGemma (length: {len(model_response)} chars)")
             
             # Parse the response into structured format
-            parsed_output = self._parse_initial_response(response, patient_context, chief_complaint)
+            parsed_output = self._parse_initial_response(model_response, patient_context, chief_complaint)
             
             processing_time = int(time.time() - start_time)
             parsed_output["processing_time_seconds"] = processing_time
-            parsed_output["model_version"] = self.primary_model
-            parsed_output["model_used"] = "primary"
+            parsed_output["model_version"] = self.model_version
             
             return parsed_output
             
-        except Exception as e1:
-            logger.warning(f"Primary model {self.primary_model} failed: {str(e1)}")
-            logger.info(f"Attempting fallback to {self.fallback_model}")
-            
-            # Try fallback model (BioGPT)
-            try:
-                prompt = self._build_initial_prompt(
-                    patient_context,
-                    chief_complaint,
-                    current_state,
-                    last_session_summary,
-                    files_count
-                )
-                
-                response = self.client.text_generation(
-                    prompt,
-                    model=self.fallback_model,
-                    max_new_tokens=1000,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
-                )
-                
-                logger.info(f"SUCCESS: Fallback model {self.fallback_model} responded (length: {len(response)} chars)")
-                
-                # Parse the response
-                parsed_output = self._parse_initial_response(response, patient_context, chief_complaint)
-                
-                processing_time = int(time.time() - start_time)
-                parsed_output["processing_time_seconds"] = processing_time
-                parsed_output["model_version"] = f"{self.fallback_model} (fallback)"
-                parsed_output["model_used"] = "fallback"
-                
-                return parsed_output
-                
-            except Exception as e2:
-                logger.error(f"Fallback model {self.fallback_model} also failed: {str(e2)}")
-                # Both models failed - raise exception to mark VLM as failed
-                raise Exception(f"All VLM models failed. Primary: {str(e1)}, Fallback: {str(e2)}")
+        except requests.exceptions.Timeout:
+            logger.error("Remote MedGemma service timeout")
+            raise Exception("Remote MedGemma service timeout - request took longer than 2 minutes")
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"Cannot connect to remote MedGemma service: {str(e)}")
+            raise Exception(f"Cannot connect to remote MedGemma service. Is your Colab instance running? URL: {self.remote_url}")
+        except Exception as e:
+            logger.error(f"MedGemma processing failed: {str(e)}")
+            raise Exception(f"MedGemma processing failed: {str(e)}")
     
     def process_reanalysis_with_context(
         self,
@@ -117,7 +94,10 @@ class MedGemmaService:
         last_session_summary: Optional[str] = None,
         files_count: int = 0
     ) -> Dict[str, Any]:
-        """Reanalyze session with additional doctor-provided context"""
+        """Reanalyze session with additional doctor-provided context via remote Colab"""
+        
+        if not self.remote_url:
+            raise Exception("MEDGEMMA_REMOTE_URL not configured. Please set your Colab ngrok URL in environment variables.")
         
         start_time = time.time()
         
@@ -136,38 +116,30 @@ class MedGemmaService:
             
             logger.info(f"Reanalyzing session with additional context (prompt length: {len(prompt)} chars)")
             
-            # Call Hugging Face Inference API (try primary first)
-            try:
-                response = self.client.text_generation(
-                    prompt,
-                    model=self.primary_model,
-                    max_new_tokens=1000,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
-                )
-                model_used = "primary"
-            except Exception as e_primary:
-                logger.warning(f"Primary model failed in reanalysis: {str(e_primary)}, trying fallback")
-                response = self.client.text_generation(
-                    prompt,
-                    model=self.fallback_model,
-                    max_new_tokens=1000,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
-                )
-                model_used = "fallback"
+            # Call remote Colab instance
+            response = requests.post(
+                f"{self.remote_url}/predict_text",
+                json={
+                    "text": prompt,
+                    "max_new_tokens": 1000
+                },
+                timeout=self.request_timeout
+            )
             
-            logger.info(f"SUCCESS: Received reanalysis response (length: {len(response)} chars)")
+            if response.status_code != 200:
+                raise Exception(f"Remote service returned status {response.status_code}: {response.text}")
+            
+            response_data = response.json()
+            model_response = response_data.get("response", "")
+            
+            logger.info(f"SUCCESS: Received reanalysis response (length: {len(model_response)} chars)")
             
             # Parse the response into structured format
-            parsed_output = self._parse_initial_response(response, patient_context, chief_complaint)
+            parsed_output = self._parse_initial_response(model_response, patient_context, chief_complaint)
             
             processing_time = int(time.time() - start_time)
             parsed_output["processing_time_seconds"] = processing_time
-            parsed_output["model_version"] = f"{self.primary_model if model_used == 'primary' else self.fallback_model} (reanalysis)"
-            parsed_output["model_used"] = model_used
+            parsed_output["model_version"] = f"{self.model_version} (reanalysis)"
             
             return parsed_output
             
@@ -182,7 +154,10 @@ class MedGemmaService:
         doctor_query: str,
         previous_chat: List[Dict[str, Any]]
     ) -> Dict[str, Any]:
-        """Generate VLM response to doctor's question using MedGemma"""
+        """Generate VLM response to doctor's question via remote Colab"""
+        
+        if not self.remote_url:
+            raise Exception("MEDGEMMA_REMOTE_URL not configured. Please set your Colab ngrok URL in environment variables.")
         
         start_time = time.time()
         
@@ -199,39 +174,33 @@ class MedGemmaService:
                 additional_contexts
             )
             
-            logger.info(f"Sending doctor query to MedGemma")
+            logger.info(f"Sending doctor query to remote MedGemma")
             
-            # Call Hugging Face Inference API (try primary first)
-            try:
-                response = self.client.text_generation(
-                    prompt,
-                    model=self.primary_model,
-                    max_new_tokens=500,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
-                )
-            except Exception as e_primary:
-                logger.warning(f"Primary model failed in chat: {str(e_primary)}, trying fallback")
-                response = self.client.text_generation(
-                    prompt,
-                    model=self.fallback_model,
-                    max_new_tokens=500,
-                    temperature=0.7,
-                    top_p=0.9,
-                    repetition_penalty=1.1,
-                )
+            # Call remote Colab instance
+            response = requests.post(
+                f"{self.remote_url}/predict_text",
+                json={
+                    "text": prompt,
+                    "max_new_tokens": 500
+                },
+                timeout=self.request_timeout
+            )
+            
+            if response.status_code != 200:
+                raise Exception(f"Remote service returned status {response.status_code}: {response.text}")
+            
+            response_data = response.json()
+            model_response = response_data.get("response", "")
             
             processing_time = int(time.time() - start_time)
             
             return {
-                "findings": response.strip(),
+                "findings": model_response.strip(),
                 "processing_time": processing_time
             }
             
         except Exception as e:
             logger.error(f"Error in doctor query to MedGemma: {str(e)}")
-            # Don't return fake response - raise exception
             raise Exception(f"VLM chat failed: {str(e)}")
     
     def _build_reanalysis_prompt(

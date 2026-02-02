@@ -16,6 +16,7 @@ import SessionDetail from './pages/sessions/SessionDetail';
 import DoctorQueue from './pages/doctor/DoctorQueue';
 import SessionReview from './pages/doctor/SessionReview';
 import UserManagement from './pages/admin/UserManagement';
+import SystemLogs from './pages/admin/SystemLogs';
 
 const theme = createTheme({
   palette: {
@@ -101,6 +102,14 @@ function App() {
                   element={
                     <ProtectedRoute allowedRoles={['admin']}>
                       <UserManagement />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path="admin/logs"
+                  element={
+                    <ProtectedRoute allowedRoles={['admin']}>
+                      <SystemLogs />
                     </ProtectedRoute>
                   }
                 />

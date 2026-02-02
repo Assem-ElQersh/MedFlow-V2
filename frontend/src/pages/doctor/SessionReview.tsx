@@ -21,8 +21,6 @@ import {
 import { 
   ArrowBack, 
   CheckCircle, 
-  AddCircleOutline, 
-  Autorenew as AutorenewIcon, 
   Update as UpdateIcon 
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,6 +29,7 @@ import { patientService } from '../../services/patientService';
 import FileUpload from '../../components/FileUpload';
 import VLMChat from '../../components/doctor/VLMChat';
 import DiagnosisForm from '../../components/doctor/DiagnosisForm';
+import { formatVLMResponse } from '../../utils/vlmFormatter';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -52,8 +51,6 @@ const SessionReview: React.FC = () => {
   const queryClient = useQueryClient();
   const [tabValue, setTabValue] = useState(0);
   const [closeDialogOpen, setCloseDialogOpen] = useState(false);
-  const [additionalContext, setAdditionalContext] = useState('');
-  const [isReanalyzing, setIsReanalyzing] = useState(false);
 
   const { data: session, isLoading } = useQuery({
     queryKey: ['doctor', 'session', sessionId],
@@ -75,26 +72,6 @@ const SessionReview: React.FC = () => {
       navigate('/doctor/queue');
     },
   });
-
-  const reanalyzeMutation = useMutation({
-    mutationFn: (context: string) => doctorService.reanalyzeWithContext(sessionId!, context),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['doctor', 'session', sessionId] });
-      setAdditionalContext('');
-      setIsReanalyzing(false);
-    },
-    onError: (error: any) => {
-      console.error('Reanalysis failed:', error);
-      setIsReanalyzing(false);
-    }
-  });
-
-  const handleReanalyze = () => {
-    if (additionalContext.trim()) {
-      setIsReanalyzing(true);
-      reanalyzeMutation.mutate(additionalContext);
-    }
-  };
 
   if (isLoading || !session) {
     return (
@@ -365,53 +342,8 @@ const SessionReview: React.FC = () => {
               </Alert>
             ) : vlmCompleted && vlmOutput ? (
               <>
-                {/* Additional Context Section */}
-                <Paper sx={{ p: 3, mb: 3, bgcolor: 'info.50', border: '2px solid', borderColor: 'info.main' }}>
-                  <Typography variant="h6" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <AddCircleOutline /> Add Additional Medical Context
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" paragraph>
-                    Provide additional information (e.g., undisclosed conditions, new symptoms, or clarifications) 
-                    to reanalyze this case with updated context.
-                  </Typography>
-                  
-                  <Box
-                    component="textarea"
-                    placeholder="Example: Patient mentioned they also have Type 2 Diabetes that was not disclosed to the nurse..."
-                    value={additionalContext}
-                    onChange={(e: any) => setAdditionalContext(e.target.value)}
-                    disabled={isReanalyzing}
-                    style={{
-                      width: '100%',
-                      minHeight: '100px',
-                      padding: '12px',
-                      fontSize: '14px',
-                      fontFamily: 'inherit',
-                      border: '1px solid #ccc',
-                      borderRadius: '4px',
-                      resize: 'vertical',
-                      marginBottom: '16px'
-                    }}
-                  />
-                  
-                  <Box display="flex" gap={2} alignItems="center">
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      startIcon={isReanalyzing ? <CircularProgress size={20} /> : <AutorenewIcon />}
-                      onClick={handleReanalyze}
-                      disabled={!additionalContext.trim() || isReanalyzing}
-                    >
-                      {isReanalyzing ? 'Reanalyzing...' : 'Reanalyze with Context'}
-                    </Button>
-                    <Typography variant="caption" color="text.secondary">
-                      This will update the VLM analysis below and add to conversation history
-                    </Typography>
-                  </Box>
-                </Paper>
-
                 <Paper sx={{ p: 3, mb: 3, bgcolor: 'primary.50' }}>
-                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                  <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                     <Typography variant="h6">
                       VLM Initial Analysis
                     </Typography>
@@ -424,42 +356,52 @@ const SessionReview: React.FC = () => {
                       />
                     )}
                   </Box>
-                  <Typography variant="body1" paragraph>
-                    {vlmOutput.findings}
-                  </Typography>
+                  <Box mb={3}>
+                    {formatVLMResponse(vlmOutput.findings)}
+                  </Box>
 
-                  <Typography variant="subtitle2" gutterBottom>
+                  <Divider sx={{ my: 3 }} />
+                  
+                  <Typography variant="subtitle1" fontWeight="600" gutterBottom sx={{ color: 'primary.main' }}>
                     Key Observations
                   </Typography>
-                  <Box component="ul" sx={{ pl: 2 }}>
+                  <Box component="ul" sx={{ pl: 2, mb: 3 }}>
                     {vlmOutput.key_observations.map((obs: string, i: number) => (
-                      <li key={i}>
-                        <Typography variant="body2">{obs}</Typography>
-                      </li>
+                      <Box component="li" key={i} sx={{ mb: 1 }}>
+                        <Typography variant="body2" sx={{ lineHeight: 1.7 }}>{obs}</Typography>
+                      </Box>
                     ))}
                   </Box>
 
-                  <Typography variant="subtitle2" gutterBottom mt={2}>
+                  <Typography variant="subtitle1" fontWeight="600" gutterBottom sx={{ color: 'primary.main' }}>
                     Suggested Considerations
                   </Typography>
-                  <Box component="ul" sx={{ pl: 2 }}>
+                  <Box component="ul" sx={{ pl: 2, mb: 3 }}>
                     {vlmOutput.suggested_considerations.map((cons: string, i: number) => (
-                      <li key={i}>
-                        <Typography variant="body2">{cons}</Typography>
-                      </li>
+                      <Box component="li" key={i} sx={{ mb: 1 }}>
+                        <Typography variant="body2" sx={{ lineHeight: 1.7 }}>{cons}</Typography>
+                      </Box>
                     ))}
                   </Box>
 
-                  <Typography variant="subtitle2" gutterBottom mt={2}>
+                  <Typography variant="subtitle1" fontWeight="600" gutterBottom sx={{ color: 'primary.main' }}>
                     Differential Patterns
                   </Typography>
-                  <Box display="flex" flexWrap="wrap" gap={1}>
+                  <Box display="flex" flexWrap="wrap" gap={1} mb={3}>
                     {vlmOutput.differential_patterns.map((pattern: string, i: number) => (
-                      <Chip key={i} label={pattern} variant="outlined" />
+                      <Chip 
+                        key={i} 
+                        label={pattern} 
+                        variant="outlined" 
+                        color="primary"
+                        sx={{ fontWeight: 500 }}
+                      />
                     ))}
                   </Box>
 
-                  <Typography variant="caption" color="text.secondary" display="block" mt={2}>
+                  <Divider sx={{ my: 2 }} />
+                  
+                  <Typography variant="caption" color="text.secondary" display="block" sx={{ fontStyle: 'italic' }}>
                     Model: {vlmOutput.model_version} • Processing time:{' '}
                     {vlmOutput.processing_time_seconds}s
                   </Typography>

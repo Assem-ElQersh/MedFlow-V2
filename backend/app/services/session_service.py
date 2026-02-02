@@ -15,6 +15,8 @@ from app.models.session import (
 )
 from app.core.database import get_next_sequence
 from app.services.storage_service import storage_service
+from app.services.log_service import log_service
+from app.models.log import LogLevel, LogCategory
 import uuid
 
 
@@ -84,6 +86,21 @@ async def create_session(
     })
     
     await db.sessions.insert_one(session_dict)
+    
+    # Log session creation
+    await log_service.create_log(
+        db=db,
+        level=LogLevel.SUCCESS,
+        category=LogCategory.SESSION,
+        message=f"New {session_create.session_type.replace('_', ' ')} session created",
+        user_id=created_by,
+        user_name=created_by_name,
+        user_role="nurse",
+        session_id=session_id,
+        patient_id=session_create.patient_id,
+        patient_name=patient["name"],
+        details={"session_type": session_create.session_type}
+    )
     
     return await get_session(db, session_id)
 
@@ -316,6 +333,22 @@ async def submit_session(
     # Trigger VLM processing task
     from app.tasks.vlm_tasks import process_session_vlm
     process_session_vlm.delay(session_id)
+    
+    # Log session submission
+    user_doc = await db.users.find_one({"user_id": submitted_by})
+    await log_service.create_log(
+        db=db,
+        level=LogLevel.INFO,
+        category=LogCategory.SESSION,
+        message=f"Session submitted for VLM processing",
+        user_id=submitted_by,
+        user_name=user_doc.get("full_name") if user_doc else None,
+        user_role=user_doc.get("role") if user_doc else None,
+        session_id=session_id,
+        patient_id=session_doc["patient_id"],
+        patient_name=session_doc["patient_name"],
+        details={"session_type": session_doc["session_type"]}
+    )
     
     return await get_session(db, session_id)
 

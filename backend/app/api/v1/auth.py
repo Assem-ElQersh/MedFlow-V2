@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, status, Depends
+from fastapi import APIRouter, HTTPException, status, Depends, Request
 from datetime import datetime
 from app.models.user import UserCreate, User, Token, LoginRequest, UserInDB
 from app.core.database import get_database, get_next_sequence
@@ -8,6 +8,8 @@ from app.core.security import (
     create_access_token,
     get_current_user
 )
+from app.services.log_service import log_service
+from app.models.log import LogLevel, LogCategory
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 router = APIRouter()
@@ -67,6 +69,7 @@ async def register(
 @router.post("/login", response_model=Token)
 async def login(
     login_request: LoginRequest,
+    request: Request,
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
     """Login with username and password"""
@@ -97,6 +100,18 @@ async def login(
     await db.users.update_one(
         {"username": login_request.username},
         {"$set": {"last_login": datetime.utcnow()}}
+    )
+    
+    # Log successful login
+    await log_service.create_log(
+        db=db,
+        level=LogLevel.SUCCESS,
+        category=LogCategory.AUTH,
+        message=f"User logged in successfully",
+        user_id=user_doc["user_id"],
+        user_name=user_doc["full_name"],
+        user_role=user_doc["role"],
+        ip_address=request.client.host if request.client else None
     )
     
     # Create access token
@@ -136,7 +151,23 @@ async def get_current_user_info(
 
 
 @router.post("/logout")
-async def logout(current_user: dict = Depends(get_current_user)):
+async def logout(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncIOMotorDatabase = Depends(get_database)
+):
     """Logout current user (client should remove token)"""
+    # Log logout
+    user_doc = await db.users.find_one({"user_id": current_user["user_id"]})
+    if user_doc:
+        await log_service.create_log(
+            db=db,
+            level=LogLevel.INFO,
+            category=LogCategory.AUTH,
+            message=f"User logged out",
+            user_id=user_doc["user_id"],
+            user_name=user_doc["full_name"],
+            user_role=user_doc["role"]
+        )
+    
     return {"message": "Successfully logged out"}
 

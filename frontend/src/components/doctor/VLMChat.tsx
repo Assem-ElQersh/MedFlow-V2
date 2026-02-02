@@ -7,10 +7,12 @@ import {
   Typography,
   Avatar,
   CircularProgress,
+  Divider,
 } from '@mui/material';
 import { Send, SmartToy, Person } from '@mui/icons-material';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { doctorService } from '../../services/doctorService';
+import { formatVLMResponse } from '../../utils/vlmFormatter';
 
 interface VLMChatProps {
   sessionId: string;
@@ -90,18 +92,24 @@ const VLMChat: React.FC<VLMChatProps> = ({ sessionId, chatHistory }) => {
                       <SmartToy />
                     </Avatar>
                     <Box flex={1}>
-                      <Typography variant="subtitle2" color="text.secondary">
+                      <Typography variant="subtitle2" color="text.secondary" mb={1}>
                         VLM Assistant
                       </Typography>
-                      <Paper sx={{ p: 2, bgcolor: 'grey.50' }}>
-                        <Typography variant="body1">
-                          {msg.vlm_response.findings}
-                        </Typography>
+                      <Paper 
+                        sx={{ 
+                          p: 3, 
+                          bgcolor: 'grey.50',
+                          border: '1px solid',
+                          borderColor: 'grey.200',
+                        }}
+                      >
+                        {formatVLMResponse(msg.vlm_response.findings)}
+                        <Divider sx={{ my: 2 }} />
                         <Typography
                           variant="caption"
                           color="text.secondary"
                           display="block"
-                          mt={1}
+                          sx={{ fontStyle: 'italic' }}
                         >
                           Processing time: {msg.vlm_response.processing_time}s
                         </Typography>

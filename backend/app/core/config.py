@@ -1,9 +1,15 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
 import os
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=False,
+        extra="allow"
+    )
+    
     # MongoDB
     MONGODB_URL: str = "mongodb://localhost:27017"
     MONGODB_DB_NAME: str = "medflow"
@@ -28,14 +34,8 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = ["http://localhost:5173", "http://localhost:3000"]
     
-    # Hugging Face
-    HF_TOKEN: str = ""
-    MEDGEMMA_MODEL: str = "google/medgemma-1.5-4b-it"  # Primary medical VLM (instruction-tuned, v1.5)
-    BIOGPT_MODEL: str = "microsoft/biogpt"  # Fallback medical text model (lowercase)
-    
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    # MedGemma Remote Service (Colab/ngrok URL)
+    MEDGEMMA_REMOTE_URL: str = ""  # Set this to your ngrok URL from Colab
 
 
 settings = Settings()

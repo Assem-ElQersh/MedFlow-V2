@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection
-from app.api.v1 import auth, patients, sessions, doctor, dashboard
+from app.api.v1 import auth, patients, sessions, doctor, dashboard, admin
 
 # Suppress passlib bcrypt version warning (harmless compatibility warning)
 import logging
@@ -47,6 +47,7 @@ app.include_router(patients.router, prefix=f"{settings.API_V1_PREFIX}/patients",
 app.include_router(sessions.router, prefix=f"{settings.API_V1_PREFIX}/sessions", tags=["Sessions"])
 app.include_router(doctor.router, prefix=f"{settings.API_V1_PREFIX}/doctor", tags=["Doctor"])
 app.include_router(dashboard.router, prefix=f"{settings.API_V1_PREFIX}/dashboard", tags=["Dashboard"])
+app.include_router(admin.router, prefix=f"{settings.API_V1_PREFIX}/admin", tags=["Admin"])
 
 
 if __name__ == "__main__":

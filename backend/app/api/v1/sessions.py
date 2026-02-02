@@ -42,7 +42,17 @@ async def get_session(
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
     """Get session by session_id"""
-    return await session_service.get_session(db, session_id)
+    session = await session_service.get_session(db, session_id)
+    
+    # Nurses cannot see VLM output after session is submitted
+    if current_user["role"] == "nurse" and session.session_status != "draft":
+        # Convert to dict, remove VLM-related data, and return
+        session_dict = session.model_dump()
+        session_dict["vlm_initial_output"] = None
+        session_dict["vlm_chat_history"] = []
+        return Session(**session_dict)
+    
+    return session
 
 
 @router.put("/{session_id}", response_model=Session)

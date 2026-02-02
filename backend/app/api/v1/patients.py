@@ -58,5 +58,15 @@ async def get_patient_portfolio(
     db: AsyncIOMotorDatabase = Depends(get_database)
 ):
     """Get patient with all their sessions"""
-    return await patient_service.get_patient_portfolio(db, patient_id)
+    portfolio = await patient_service.get_patient_portfolio(db, patient_id)
+    
+    # Nurses cannot see VLM output after session is submitted
+    if current_user["role"] == "nurse":
+        for session in portfolio.get("sessions", []):
+            if session.get("session_status") != "draft":
+                # Remove VLM-related data for nurses
+                session["vlm_initial_output"] = None
+                session["vlm_chat_history"] = []
+    
+    return portfolio
 

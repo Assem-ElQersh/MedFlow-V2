@@ -26,6 +26,7 @@ import {
   ExitToApp,
   Person,
   LocalHospital,
+  Description,
 } from '@mui/icons-material';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -77,6 +78,12 @@ const Layout: React.FC = () => {
       text: 'Users',
       icon: <Person />,
       path: '/admin/users',
+      roles: ['admin'],
+    },
+    {
+      text: 'System Logs',
+      icon: <Description />,
+      path: '/admin/logs',
       roles: ['admin'],
     },
   ];

@@ -129,8 +129,8 @@ class Session(SessionBase):
     session_id: str
     patient_name: str
     assigned_doctor_name: str
-    nurse_id: str
-    nurse_name: str
+    nurse_id: Optional[str] = None
+    nurse_name: Optional[str] = None
     session_date: datetime
     session_status: SessionStatus
     

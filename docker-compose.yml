@@ -3,8 +3,9 @@ services:
   mongodb:
     image: mongo:7.0
     container_name: medflow-mongodb
-    ports:
-      - "27017:27017"
+    # No external port mapping - only accessible within Docker network
+    expose:
+      - "27017"
     volumes:
       - mongodb_data:/data/db
     environment:
@@ -16,8 +17,9 @@ services:
   redis:
     image: redis:7-alpine
     container_name: medflow-redis
-    ports:
-      - "6379:6379"
+    # No external port mapping - only accessible within Docker network
+    expose:
+      - "6379"
     networks:
       - medflow-network
 
@@ -36,8 +38,7 @@ services:
       - SECRET_KEY=change-this-in-production-use-strong-secret
       - DEBUG=True
       - BACKEND_CORS_ORIGINS=["http://localhost:5173", "http://localhost:3000"]
-      - MEDGEMMA_MODEL=google/medgemma-1.5-4b-it
-      - HF_TOKEN=${HF_TOKEN:-}
+      - MEDGEMMA_REMOTE_URL=${MEDGEMMA_REMOTE_URL:-}
     depends_on:
       - mongodb
       - redis
@@ -57,8 +58,7 @@ services:
       - MONGODB_URL=mongodb://mongodb:27017
       - MONGODB_DB_NAME=medflow
       - REDIS_URL=redis://redis:6379/0
-      - MEDGEMMA_MODEL=google/medgemma-1.5-4b-it
-      - HF_TOKEN=${HF_TOKEN:-}
+      - MEDGEMMA_REMOTE_URL=${MEDGEMMA_REMOTE_URL:-}
     depends_on:
       - mongodb
       - redis
