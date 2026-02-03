@@ -646,29 +646,6 @@ Interactive API documentation available when backend is running:
 
 ---
 
-## What's New: Real AI Integration
-
-### Before (Mock System)
-- ❌ Fake AI responses
-- ❌ Instant results (no real analysis)
-- ❌ Generic medical text
-
-### Now (Real MedGemma AI)
-- ✅ Real medical AI model from Google
-- ✅ Professional medical analysis
-- ✅ Context-aware responses
-- ✅ Doctor-AI interactive chat
-- ✅ Reanalysis with additional context
-
-### Minimal Code Changes
-- ✅ Same frontend interface
-- ✅ Same API endpoints
-- ✅ Same database schema
-- ✅ Same user experience
-- ✅ Just add ngrok URL and restart!
-
----
-
 ## Contributing
 
 1. Fork the repository
@@ -695,18 +672,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ---
 
-## Acknowledgments
-
-- **Google MedGemma** - Medical Vision Language Model
-- **FastAPI** - Modern Python web framework
-- **React** - Frontend library
-- **MongoDB** - Database
-- **Docker** - Containerization
-- **Hugging Face** - Model hosting
-- **ngrok** - Secure tunneling
-
----
-
 ## System Requirements
 
 **Development:**
@@ -728,5 +693,3 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - 6379 (Redis - internal only)
 
 ---
-
-🎉 **You're all set! Start building amazing medical AI applications with MedFlow!**
