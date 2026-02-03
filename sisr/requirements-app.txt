@@ -1,0 +1,8 @@
+# SISR CXR Enhancer app
+torch>=2.0
+torchvision>=0.15
+numpy
+Pillow
+gradio>=4.0
+einops
+pydicom>=2.0

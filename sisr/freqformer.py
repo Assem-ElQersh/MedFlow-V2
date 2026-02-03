@@ -4,36 +4,54 @@
 ## Addresses the "disappearing edges" problem with dual frequency processing
 ## ============================================================================
 
-# Installation
-!pip install einops -q
-!pip install torchxrayvision -q
+# Installation (uncomment in Jupyter/Kaggle if needed):
+# !pip install einops -q
+# !pip install torchxrayvision -q
 
-# Core imports
+# Core imports (required for model)
 import os
+import math
 import numpy as np
-import matplotlib.pyplot as plt
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-from torchvision import transforms
-from torchvision.models import vgg19
-from skimage.metrics import peak_signal_noise_ratio as psnr
-from skimage.metrics import structural_similarity as ssim
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, confusion_matrix
-import glob
-import cv2
-from tqdm import tqdm
-import pandas as pd
-from PIL import Image
-import seaborn as sns
-import torchxrayvision as xrv
-from scipy import ndimage
-from einops import rearrange
-from einops.layers.torch import Rearrange
-import math
+
+# Training/visualization imports (optional for inference-only use)
+try:
+    import matplotlib.pyplot as plt
+    import torch.optim as optim
+    from torch.utils.data import Dataset, DataLoader
+    from torchvision import transforms
+    from torchvision.models import vgg19
+    from skimage.metrics import peak_signal_noise_ratio as psnr
+    from skimage.metrics import structural_similarity as ssim
+    from sklearn.model_selection import train_test_split
+    from sklearn.metrics import accuracy_score, confusion_matrix
+    import glob
+    import cv2
+    from tqdm import tqdm
+    import pandas as pd
+    from PIL import Image
+    import seaborn as sns
+    import torchxrayvision as xrv
+    from scipy import ndimage
+    from einops import rearrange
+    from einops.layers.torch import Rearrange
+    _TRAINING_DEPS_AVAILABLE = True
+except ImportError:
+    _TRAINING_DEPS_AVAILABLE = False
+    # Lightweight imports so class definitions (e.g. MedicalSRDataset) still parse
+    import torch.optim as optim
+    from torch.utils.data import Dataset, DataLoader
+    from torchvision import transforms
+    from PIL import Image
+    plt = vgg19 = xrv = None
+    psnr = ssim = None
+    cv2 = None
+    tqdm = lambda x, **kw: x
+    rearrange = Rearrange = None
+    glob = train_test_split = accuracy_score = confusion_matrix = None
+    pd = sns = ndimage = None
 
 # Set random seeds for reproducibility
 np.random.seed(42)

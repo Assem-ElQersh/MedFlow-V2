@@ -1,0 +1,11 @@
+# Conda environment for SISR CXR Enhancer (isolated from system)
+name: sisr
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pip
+  - pip:
+    - -r requirements-app.txt
