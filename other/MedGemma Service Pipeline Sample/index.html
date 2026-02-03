@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MedGemma Inference</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 30px;
+            padding: 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e74c3c;
+        }
+
+        .status-dot.connected {
+            background: #2ecc71;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 10px;
+        }
+
+        .mode-btn {
+            padding: 10px 20px;
+            border: none;
+            background: transparent;
+            color: #666;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 600;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+
+        .mode-btn.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .input-section {
+            display: none;
+        }
+
+        .input-section.active {
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            padding: 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            resize: vertical;
+            min-height: 120px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+            margin-bottom: 15px;
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .image-upload {
+            margin-bottom: 20px;
+        }
+
+        .upload-area {
+            border: 2px dashed #e0e0e0;
+            border-radius: 8px;
+            padding: 40px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .upload-area:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .upload-area.dragover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        #imageInput {
+            display: none;
+        }
+
+        .image-preview {
+            margin-top: 15px;
+            display: none;
+        }
+
+        .image-preview.show {
+            display: block;
+        }
+
+        .preview-container {
+            position: relative;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+
+        .preview-image {
+            max-width: 100%;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+
+        .remove-image {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        button.primary {
+            width: 100%;
+            padding: 16px;
+            margin-top: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button.primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        button.primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .loader {
+            display: none;
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .loader.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .result {
+            margin-top: 30px;
+            padding: 20px;
+            border-radius: 8px;
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            display: none;
+        }
+
+        .result.show {
+            display: block;
+        }
+
+        .result-label {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        .result-text {
+            font-size: 16px;
+            color: #333;
+            line-height: 1.6;
+            white-space: pre-wrap;
+        }
+
+        .error {
+            margin-top: 20px;
+            padding: 16px;
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            border-radius: 8px;
+            color: #721c24;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>MedGemma Medical AI</h1>
+        <div class="subtitle">Medical multimodal language model</div>
+        
+        <div class="status" id="status">
+            <span class="status-dot" id="statusDot"></span>
+            <span id="statusText">Checking connection...</span>
+        </div>
+
+        <div class="mode-selector">
+            <button class="mode-btn active" data-mode="text" onclick="switchMode('text')">
+                Text Only
+            </button>
+            <button class="mode-btn" data-mode="image" onclick="switchMode('image')">
+                Image Only
+            </button>
+            <button class="mode-btn" data-mode="multimodal" onclick="switchMode('multimodal')">
+                Text + Image
+            </button>
+        </div>
+
+        <div class="input-section active" id="textSection">
+            <textarea 
+                id="textInput" 
+                placeholder="Enter your medical question or description..."
+                rows="5"
+            ></textarea>
+            <button class="primary" onclick="analyzeText()">Analyze Text</button>
+        </div>
+
+        <div class="input-section" id="imageSection">
+            <div class="image-upload">
+                <div class="upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
+                    <p>Click to upload or drag and drop an image</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 8px;">Supports: JPG, PNG, WEBP</p>
+                </div>
+                <input type="file" id="imageInput" accept="image/*" onchange="handleImageSelect(event)">
+                
+                <div class="image-preview" id="imagePreview">
+                    <div class="preview-container">
+                        <img id="previewImg" class="preview-image" src="" alt="Preview">
+                        <button class="remove-image" onclick="removeImage()">×</button>
+                    </div>
+                </div>
+            </div>
+            
+            <textarea 
+                id="imagePrompt" 
+                placeholder="Enter prompt for image analysis (optional)..."
+                rows="3"
+            >Describe this medical image in detail.</textarea>
+            
+            <button class="primary" onclick="analyzeImage()">Analyze Image</button>
+        </div>
+
+        <div class="input-section" id="multimodalSection">
+            <div class="image-upload">
+                <div class="upload-area" id="uploadAreaMulti" onclick="document.getElementById('imageInputMulti').click()">
+                    <p>Click to upload or drag and drop an image</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 8px;">Supports: JPG, PNG, WEBP</p>
+                </div>
+                <input type="file" id="imageInputMulti" accept="image/*" onchange="handleImageSelectMulti(event)">
+                
+                <div class="image-preview" id="imagePreviewMulti">
+                    <div class="preview-container">
+                        <img id="previewImgMulti" class="preview-image" src="" alt="Preview">
+                        <button class="remove-image" onclick="removeImageMulti()">×</button>
+                    </div>
+                </div>
+            </div>
+            
+            <textarea 
+                id="multimodalText" 
+                placeholder="Enter your question about the image..."
+                rows="3"
+            ></textarea>
+            
+            <button class="primary" onclick="analyzeMultimodal()">Analyze Both</button>
+        </div>
+
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <p style="margin-top: 12px; color: #666;">Processing...</p>
+        </div>
+
+        <div class="result" id="result">
+            <div class="result-label">Response</div>
+            <div class="result-text" id="resultText"></div>
+        </div>
+
+        <div class="error" id="error"></div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8001';
+        let currentMode = 'text';
+        let selectedImage = null;
+        let selectedImageMulti = null;
+
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_URL}/health`);
+                const data = await response.json();
+                
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+                
+                if (data.remote === 'connected') {
+                    statusDot.classList.add('connected');
+                    statusText.textContent = `Connected to ${data.model || 'model service'}`;
+                } else {
+                    statusDot.classList.remove('connected');
+                    statusText.textContent = 'Model service disconnected';
+                }
+            } catch (error) {
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+                statusDot.classList.remove('connected');
+                statusText.textContent = 'Backend not running';
+            }
+        }
+
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            document.querySelectorAll('.mode-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            document.querySelector(`[data-mode="${mode}"]`).classList.add('active');
+            
+            document.querySelectorAll('.input-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            document.getElementById(`${mode}Section`).classList.add('active');
+            
+            clearResults();
+        }
+
+        function handleImageSelect(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedImage = file;
+                displayImagePreview(file, 'previewImg', 'imagePreview');
+            }
+        }
+
+        function handleImageSelectMulti(event) {
+            const file = event.target.files[0];
+            if (file) {
+                selectedImageMulti = file;
+                displayImagePreview(file, 'previewImgMulti', 'imagePreviewMulti');
+            }
+        }
+
+        function displayImagePreview(file, imgId, previewId) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById(imgId).src = e.target.result;
+                document.getElementById(previewId).classList.add('show');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function removeImage() {
+            selectedImage = null;
+            document.getElementById('imageInput').value = '';
+            document.getElementById('imagePreview').classList.remove('show');
+        }
+
+        function removeImageMulti() {
+            selectedImageMulti = null;
+            document.getElementById('imageInputMulti').value = '';
+            document.getElementById('imagePreviewMulti').classList.remove('show');
+        }
+
+        async function analyzeText() {
+            const text = document.getElementById('textInput').value.trim();
+            
+            if (!text) {
+                showError('Please enter some text');
+                return;
+            }
+
+            setLoading(true);
+            clearResults();
+
+            try {
+                const response = await fetch(`${API_URL}/analyze_text`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ text: text })
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const data = await response.json();
+                showResult(data.response);
+
+            } catch (err) {
+                showError(`Error: ${err.message}`);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function analyzeImage() {
+            if (!selectedImage) {
+                showError('Please select an image');
+                return;
+            }
+
+            const prompt = document.getElementById('imagePrompt').value.trim();
+
+            setLoading(true);
+            clearResults();
+
+            try {
+                const formData = new FormData();
+                formData.append('image', selectedImage);
+                formData.append('prompt', prompt);
+
+                const response = await fetch(`${API_URL}/analyze_image`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const data = await response.json();
+                showResult(data.response);
+
+            } catch (err) {
+                showError(`Error: ${err.message}`);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        async function analyzeMultimodal() {
+            const text = document.getElementById('multimodalText').value.trim();
+            
+            if (!selectedImageMulti) {
+                showError('Please select an image');
+                return;
+            }
+            
+            if (!text) {
+                showError('Please enter text');
+                return;
+            }
+
+            setLoading(true);
+            clearResults();
+
+            try {
+                const formData = new FormData();
+                formData.append('image', selectedImageMulti);
+                formData.append('text', text);
+
+                const response = await fetch(`${API_URL}/analyze_multimodal`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                const data = await response.json();
+                showResult(data.response);
+
+            } catch (err) {
+                showError(`Error: ${err.message}`);
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function setLoading(loading) {
+            const loader = document.getElementById('loader');
+            const buttons = document.querySelectorAll('button.primary');
+            
+            if (loading) {
+                loader.classList.add('show');
+                buttons.forEach(btn => btn.disabled = true);
+            } else {
+                loader.classList.remove('show');
+                buttons.forEach(btn => btn.disabled = false);
+            }
+        }
+
+        function showResult(text) {
+            const result = document.getElementById('result');
+            const resultText = document.getElementById('resultText');
+            
+            resultText.textContent = text;
+            result.classList.add('show');
+        }
+
+        function showError(message) {
+            const error = document.getElementById('error');
+            error.textContent = message;
+            error.classList.add('show');
+        }
+
+        function clearResults() {
+            document.getElementById('result').classList.remove('show');
+            document.getElementById('error').classList.remove('show');
+        }
+
+        const uploadArea = document.getElementById('uploadArea');
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('dragover');
+        });
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('dragover');
+        });
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                selectedImage = file;
+                displayImagePreview(file, 'previewImg', 'imagePreview');
+            }
+        });
+
+        const uploadAreaMulti = document.getElementById('uploadAreaMulti');
+        uploadAreaMulti.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadAreaMulti.classList.add('dragover');
+        });
+        uploadAreaMulti.addEventListener('dragleave', () => {
+            uploadAreaMulti.classList.remove('dragover');
+        });
+        uploadAreaMulti.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadAreaMulti.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                selectedImageMulti = file;
+                displayImagePreview(file, 'previewImgMulti', 'imagePreviewMulti');
+            }
+        });
+
+        checkHealth();
+        setInterval(checkHealth, 10000);
+    </script>
+</body>
+</html>
