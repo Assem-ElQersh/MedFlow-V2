@@ -6,3 +6,4 @@ Pillow
 gradio>=4.0
 einops
 pydicom>=2.0
+PyWavelets>=1.0
