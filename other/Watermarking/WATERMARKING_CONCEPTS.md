@@ -1,125 +1,187 @@
-# CXR Watermarking Concepts – Future Work (Conceptual)
+# CXR Watermarking – Conceptual Directions for Integrity & Authenticity (Future Work)
 
-This document is **conceptual** and intended to outline **future work** directions for CXR integrity and authenticity. It does **not** implement watermarking, nor does it recommend clinical use without regulatory validation. The goal is to document SOTA ideas suitable for hospital‑grade deployment by professionals.
+This document presents **conceptual watermarking strategies** for ensuring the integrity and authenticity of chest X-ray (CXR) images in hospital environments.
+It **does not implement** watermarking mechanisms and **does not recommend clinical deployment** without regulatory approval and extensive validation.
+
+The purpose is to document **state-of-the-art (SOTA) approaches** that may be explored by professionals for hospital-grade systems under controlled governance.
 
 ---
 
-## 1) Zero‑Watermarking (Non‑Embedding)
+## 1. Zero-Watermarking (Non-Embedding)
 
-**Idea:** Do not modify the image. Extract robust features from the original CXR and combine them with a watermark (e.g., hospital ID) to generate a **secret share** stored separately.
+### Concept
 
-**Why for CXR:** Preserves diagnostic pixels 100% (no risk of artifacts).
+The image itself is never modified. Instead, robust features are extracted from the original CXR and combined with a watermark (e.g., hospital or device identifier) to generate a **verification share** stored externally.
 
-**Future work concept:**
-- Extract deep features (e.g., VGG19, context encoders).
-- XOR features with watermark to create a server‑side share.
-- Verify integrity by recomputing features and comparing shares.
+### Rationale for CXR
 
-**Conceptual pseudocode:**
+* Preserves diagnostic pixels entirely
+* Eliminates the risk of image artifacts
+* Avoids radiologist rejection due to image alteration
+
+### Future Work Direction
+
+* Extract deep, robust representations using pretrained encoders (e.g., VGG-based or context encoders)
+* Combine hashed features with watermark bits using a reversible operation
+* Store verification shares securely on a server
+* Recompute and compare shares for integrity verification
+
+### Conceptual Pseudocode
+
 ```
 features = DeepFeatureExtractor(CXR)
 share = XOR(hash(features), watermark_bits)
 store(share)
 
-// verification
-features2 = DeepFeatureExtractor(CXR_test)
-share2 = XOR(hash(features2), watermark_bits)
-if share2 == stored_share: integrity_ok
+// Verification
+features_test = DeepFeatureExtractor(CXR_test)
+share_test = XOR(hash(features_test), watermark_bits)
+
+if share_test == stored_share:
+    integrity_ok
 ```
 
 ---
 
-## 2) Reversible Data Hiding (RDH)
+## 2. Reversible Data Hiding (RDH)
 
-**Idea:** Embed metadata but allow perfect restoration of the original image.
+### Concept
 
-**Techniques:** Prediction Error Expansion (PEE) and Histogram Shifting.
+Metadata is embedded into the image in a way that allows **perfect recovery** of the original CXR after extraction.
 
-**Why for CXR:** If patient metadata must travel with the file, RDH allows exact recovery of the pristine image.
+### Techniques
 
-**Future work concept:**
-- Embed only in RONI (Region of Non‑Interest) to protect lung fields.
-- Target PSNR > 50 dB to ensure invisibility.
+* Prediction Error Expansion (PEE)
+* Histogram Shifting
 
-**Conceptual pseudocode (PEE in RONI):**
+### Rationale for CXR
+
+When metadata must accompany the image (e.g., patient or acquisition identifiers), RDH enables transport **without permanent pixel alteration**.
+
+### Future Work Direction
+
+* Restrict embedding to **Regions of Non-Interest (RONI)** to protect lung fields
+* Enforce high visual fidelity (target PSNR > 50 dB)
+* Validate exact reversibility under controlled pipelines
+
+### Conceptual Pseudocode (PEE in RONI)
+
 ```
 for each pixel p in RONI:
-	pred = predict(p.neighbors)
-	err = p - pred
-	if err in embeddable_range:
-		p' = pred + 2*err + bit_to_embed
-extract:
-	err' = p' - pred
-	bit = err' mod 2
-	p = pred + floor(err'/2)
+    pred = predict(p.neighbors)
+    err = p - pred
+
+    if err in embeddable_range:
+        p' = pred + 2 * err + bit_to_embed
+
+// Extraction
+err' = p' - pred
+bit = err' mod 2
+p = pred + floor(err' / 2)
 ```
 
 ---
 
-## 3) Hybrid Transform‑Domain Dual Watermarking
+## 3. Hybrid Transform-Domain Dual Watermarking
 
-**Idea:** Use combined transforms to embed robust and fragile watermarks simultaneously.
+### Concept
 
-**Pipeline:** DWT → DCT → SVD
+Embed two complementary watermarks:
 
-**Why for CXR:**
-- **Robust watermark** survives compression/transfer.
-- **Fragile watermark** breaks if any pixel is tampered.
+* **Robust watermark** for ownership and authenticity
+* **Fragile watermark** for tamper detection
 
-**Future work concept:**
-- Embed robust watermark in low‑frequency bands.
-- Embed fragile watermark in sensitive bands for tamper detection.
+### Transform Pipeline
 
-**Conceptual pseudocode (DWT‑DCT‑SVD):**
+**Discrete Wavelet Transform (DWT) → Discrete Cosine Transform (DCT) → Singular Value Decomposition (SVD)**
+
+### Rationale for CXR
+
+* Robust watermark resists compression and transmission artifacts
+* Fragile watermark breaks under pixel-level modification, enabling tamper localization
+
+### Future Work Direction
+
+* Embed robust watermark in low-frequency components
+* Embed fragile watermark in high-sensitivity bands
+* Evaluate diagnostic impact rigorously
+
+### Conceptual Pseudocode
+
 ```
 LL, LH, HL, HH = DWT(CXR)
 C = DCT(LL)
 U, S, V = SVD(C)
-S' = S + alpha * robust_watermark
-C' = U * S' * V
-LL' = IDCT(C')
-CXR' = IDWT(LL', LH, HL, HH)
+
+S_modified = S + alpha * robust_watermark
+C_modified = U * S_modified * V
+LL_modified = IDCT(C_modified)
+
+CXR_watermarked = IDWT(LL_modified, LH, HL, HH)
 ```
 
 ---
 
-## 4) Blockchain & QR‑Coded Watermarking
+## 4. Blockchain-Linked QR Watermarking
 
-**Idea:** Embed a QR code that contains a cryptographic hash and signature; verify against an immutable ledger.
+### Concept
 
-**Why for CXR:** Protects against tampering and deepfake substitution.
+A QR code encoding a cryptographic hash and digital signature is embedded in the image and verified against an immutable ledger.
 
-**Future work concept:**
-- Generate QR with image hash + doctor signature.
-- Embed QR using a lightweight CNN decoder for robustness.
-- Validate QR hash against a consortium blockchain ledger.
+### Rationale for CXR
 
-**Conceptual pseudocode:**
+* Protects against image substitution and deepfake attacks
+* Enables auditability and provenance tracking
+* Supports forensic verification across institutions
+
+### Future Work Direction
+
+* Compute cryptographic hash of the original CXR
+* Generate QR code containing hash and signer identity
+* Embed QR using a robust embedding or learned decoder
+* Register hash and metadata on a consortium blockchain
+
+### Conceptual Pseudocode
+
 ```
 hash = SHA256(CXR)
 qr = QRencode(hash + doctor_signature)
-CXR' = embed_qr(CXR, qr)
+CXR_watermarked = embed_qr(CXR, qr)
+
 ledger.append(hash, timestamp, signer_id)
 
-// verification
+// Verification
 qr_extracted = decode_qr(CXR_test)
-if ledger.contains(qr_extracted.hash): integrity_ok
+if ledger.contains(qr_extracted.hash):
+    integrity_ok
 ```
 
 ---
 
-## Suggested Evaluation Protocol (Conceptual)
-- **Image Quality:** PSNR, SSIM, and diagnostic review by radiologists.
-- **Robustness Tests:** Compression, resizing, noise, transmission artifacts.
-- **Security:** Tamper localization accuracy and false‑positive rate.
+## Suggested Evaluation Framework (Conceptual)
+
+* **Image Quality:** PSNR, SSIM, and radiologist diagnostic review
+* **Robustness:** Compression, resizing, noise, and transmission stress tests
+* **Security:** Tamper detection accuracy and false-positive analysis
 
 ---
 
 ## Clinical Deployment Considerations (Conceptual)
-- Zero diagnostic impact and radiologist approval.
-- Compatibility with PACS/DICOM workflows.
-- Regulatory compliance and auditability.
+
+* Zero or negligible diagnostic impact
+* Radiologist approval and acceptance testing
+* Full compatibility with PACS and DICOM workflows
+* Compliance with regulatory and audit requirements
 
 ---
 
-**Note:** This is a high‑level roadmap of watermarking techniques for CXR integrity/authenticity. Implementation requires medical governance, legal review, and extensive clinical validation.
+## Disclaimer
+
+This document outlines **future research directions only**.
+Any real-world deployment of CXR watermarking requires:
+
+* Medical governance
+* Legal and regulatory review
+* Extensive technical and clinical validation
+
+---
