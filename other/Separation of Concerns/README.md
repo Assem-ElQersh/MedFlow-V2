@@ -137,39 +137,6 @@ With this architecture in place, you can:
 
 ---
 
-## Contents of This Folder
-
-| Item | Description |
-|------|-------------|
-| **MedGemma_CXR_—_Proper_Multi_Task_Notebook.ipynb** | Proof-of-concept: MedGemma as representation + language; separate classifier head; explanation decoupled from decision. CXR (chest X-ray) oriented. |
-| **README.md** (this file) | Rationale, architecture, and how to present this as the recommended approach. |
-
----
-
-## How to Present This in a Report or Thesis
-
-1. **State the limitation**  
-   *The implemented system integrates the VLM directly for inference due to resource constraints.*
-
-2. **Introduce the correct alternative**  
-   *A more robust and clinically appropriate architecture would decouple representation learning from decision-making.*
-
-3. **Describe it briefly**  
-   - VLM → frozen (or fine-tuned) feature extractor; no diagnostic output  
-   - Classifier → trained, calibrated, auditable  
-   - Language → explanation only, after the decision  
-
-4. **Explain why it is better**  
-   - Measurable performance and calibration  
-   - Reduced hallucination risk in the decision path  
-   - Regulatory and audit compatibility  
-   - Easier future upgrades and model swaps  
-
-5. **Position as recommended / future work**  
-   *This design is recommended for deployment in real hospital environments and is prototyped in the "Separation of Concerns" notebook.*
-
----
-
 ## One-Sentence Takeaway
 
 > **We did all this to force MedGemma to behave like a tool, not a judge.**
