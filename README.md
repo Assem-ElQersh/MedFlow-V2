@@ -230,50 +230,6 @@ See `COLAB_PRO_OPTIMIZATION.md` for detailed optimization guide.
 
 ---
 
-## Daily Workflow
-
-### Morning - Start Everything (5 minutes)
-
-1. **Start MedFlow Services:**
-   ```bash
-   cd ~/Desktop/MedFlow/MedFlow-V2
-   docker compose up -d
-   ```
-
-2. **Start Colab (if not running):**
-   - Open your Colab notebook
-   - **Runtime** → **Run all**
-   - Wait for model to load
-   - Copy the new ngrok URL
-
-3. **Update MedFlow (if URL changed):**
-   ```bash
-   nano .env  # Update MEDGEMMA_REMOTE_URL
-   ./restart_services.sh
-   ```
-
-4. **Test Connection:**
-   ```bash
-   python test_medgemma_connection.py <url>
-   ```
-
-### During Development
-
-- Edit code in `backend/` or `frontend/src/`
-- Changes auto-reload automatically
-- View logs: `docker compose logs -f`
-- Colab keeps running in background (can minimize tab)
-
-### Evening (Optional)
-
-```bash
-# Stop MedFlow (keeps data)
-docker compose down
-
-# Leave Colab running or close it
-```
-
----
 
 ## System Workflow
 
@@ -693,3 +649,4 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - 6379 (Redis - internal only)
 
 ---
+
